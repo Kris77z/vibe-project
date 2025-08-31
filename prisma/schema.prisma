@@ -1,0 +1,715 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ===================================
+// 用户与权限管理核心表
+// ===================================
+
+// 用户表
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  name      String
+  avatar    String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联关系
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  
+  // 用户角色 (多对多)
+  userRoles UserRole[]
+  
+  // 团队成员关系
+  teamMembers TeamMember[]
+  
+  // 项目相关
+  ownedProjects    Project[] @relation("ProjectOwner")
+  projectMembers   ProjectMember[]
+  
+  // 任务相关
+  assignedTasks    Task[]     @relation("TaskAssignee")
+  createdTasks     Task[]     @relation("TaskCreator")
+  taskComments     Comment[]
+  
+  // 时间记录
+  timeLogs         TimeLog[]
+  
+  // 通知
+  notifications    Notification[]
+  
+  // 文件上传
+  uploadedAttachments Attachment[] @relation("uploadedAttachments")
+  
+  // Issue相关
+  createdIssues    Issue[]        @relation("IssueCreator")
+  assignedIssues   Issue[]        @relation("IssueAssignee")
+  issueComments    IssueComment[] @relation("IssueCommentAuthor")
+  prdAuthored      PRD[]          @relation("PRDAuthor")
+  prdReviews       PRDReview[]    @relation("PRDReviewer")
+  
+  // GitLab集成
+  gitlabUserId     Int?
+  gitlabUsername   String?
+  gitlabToken      String? // 加密存储
+  
+  @@map("users")
+}
+
+// 部门表
+model Department {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?
+  parent      Department? @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children    Department[] @relation("DepartmentHierarchy")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  users       User[]
+  teams       Team[]
+
+  @@map("departments")
+}
+
+// 团队表
+model Team {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // 关联关系
+  members      TeamMember[]
+  projects     Project[]
+
+  @@map("teams")
+}
+
+// 团队成员关系表
+model TeamMember {
+  id     String @id @default(cuid())
+  userId String
+  teamId String
+  role   TeamMemberRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team   Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@map("team_members")
+}
+
+// 角色表
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isSystem    Boolean  @default(false) // 系统预设角色不可删除
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+// 用户角色关联表
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+  assignedAt DateTime @default(now())
+
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+// 权限表
+model Permission {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  resource    String   // 资源名称，如 'project', 'task', 'user'
+  action      String   // 操作类型，如 'create', 'read', 'update', 'delete'
+  description String?
+  createdAt   DateTime @default(now())
+
+  // 关联关系
+  rolePermissions RolePermission[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+// 角色权限关联表
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+  assignedAt   DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ===================================
+// 项目管理核心表
+// ===================================
+
+// 项目表
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  key         String        @unique // 项目唯一标识，如 "PROJ001"
+  description String?
+  status      ProjectStatus @default(PLANNING)
+  priority    Priority      @default(MEDIUM)
+  
+  // 时间相关
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  // 负责人
+  ownerId     String
+  owner       User          @relation("ProjectOwner", fields: [ownerId], references: [id])
+  
+  // 团队关联
+  teamId      String?
+  team        Team?         @relation(fields: [teamId], references: [id])
+  
+  // 关联关系
+  members     ProjectMember[]
+  tasks       Task[]
+  workflows   Workflow[]
+  issues      Issue[]
+  issueTags   IssueTag[]
+  
+  // GitLab集成
+  gitlabProjectId Int?
+  gitlabProjectUrl String?
+
+  @@map("projects")
+}
+
+// 项目成员关系表
+model ProjectMember {
+  id        String             @id @default(cuid())
+  projectId String
+  userId    String
+  role      ProjectMemberRole  @default(MEMBER)
+  joinedAt  DateTime           @default(now())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+// 任务表
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  
+  // 时间相关
+  startDate   DateTime?
+  dueDate     DateTime?
+  estimatedHours Float?   // 预估工时
+  actualHours    Float?   // 实际工时
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  
+  // 关联关系
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  assigneeId  String?
+  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  
+  creatorId   String
+  creator     User       @relation("TaskCreator", fields: [creatorId], references: [id])
+  
+  // 父子任务关系
+  parentId    String?
+  parent      Task?      @relation("TaskHierarchy", fields: [parentId], references: [id])
+  children    Task[]     @relation("TaskHierarchy")
+  
+  // 任务依赖（前置任务）
+  dependencies TaskDependency[] @relation("DependentTask")
+  dependents   TaskDependency[] @relation("PrecedingTask")
+  
+  // 其他关联
+  comments    Comment[]
+  attachments Attachment[]
+  timeLogs    TimeLog[]
+  
+  // Issue关联 - Task可以由Issue拆分而来
+  issueId     String?
+  issue       Issue? @relation("IssueToTask", fields: [issueId], references: [id])
+  
+  // GitLab集成
+  gitlabIssueId  Int?
+  gitlabIssueUrl String?
+  
+  // 工作流相关
+  workflowStateId String?
+  workflowState   WorkflowState? @relation(fields: [workflowStateId], references: [id])
+
+  @@map("tasks")
+}
+
+// 任务依赖关系表
+model TaskDependency {
+  id                String @id @default(cuid())
+  dependentTaskId   String // 依赖任务ID
+  precedingTaskId   String // 前置任务ID
+  dependencyType    DependencyType @default(FINISH_TO_START)
+  createdAt         DateTime @default(now())
+
+  dependentTask     Task @relation("DependentTask", fields: [dependentTaskId], references: [id], onDelete: Cascade)
+  precedingTask     Task @relation("PrecedingTask", fields: [precedingTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([dependentTaskId, precedingTaskId])
+  @@map("task_dependencies")
+}
+
+// ===================================
+// 工作流管理
+// ===================================
+
+// 工作流表
+model Workflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联关系
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  states      WorkflowState[]
+  transitions WorkflowTransition[]
+
+  @@map("workflows")
+}
+
+// 工作流状态表
+model WorkflowState {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  color       String?  // 状态颜色
+  order       Int      // 排序
+  isInitial   Boolean  @default(false) // 是否为初始状态
+  isFinal     Boolean  @default(false) // 是否为最终状态
+  createdAt   DateTime @default(now())
+
+  // 关联关系
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  tasks       Task[]
+  
+  // 状态转换
+  fromTransitions WorkflowTransition[] @relation("FromState")
+  toTransitions   WorkflowTransition[] @relation("ToState")
+
+  @@unique([workflowId, name])
+  @@map("workflow_states")
+}
+
+// 工作流转换表
+model WorkflowTransition {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  // 关联关系
+  workflowId  String
+  workflow    Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  
+  fromStateId String
+  fromState   WorkflowState @relation("FromState", fields: [fromStateId], references: [id], onDelete: Cascade)
+  
+  toStateId   String
+  toState     WorkflowState @relation("ToState", fields: [toStateId], references: [id], onDelete: Cascade)
+
+  @@unique([workflowId, fromStateId, toStateId])
+  @@map("workflow_transitions")
+}
+
+// ===================================
+// 协作与沟通
+// ===================================
+
+// 评论表
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联关系
+  taskId    String
+  task      Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  authorId  String
+  author    User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  // 回复关系
+  parentId  String?
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+// 附件表
+model Attachment {
+  id        String   @id @default(cuid())
+  filename  String
+  fileUrl   String
+  fileSize  Int
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  // 关联关系
+  taskId    String?
+  task      Task?   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  issueId   String?
+  issue     Issue?  @relation("IssueAttachments", fields: [issueId], references: [id], onDelete: Cascade)
+  
+  uploaderId String
+  uploader   User   @relation("uploadedAttachments", fields: [uploaderId], references: [id])
+
+  @@map("attachments")
+}
+
+// 通知表
+model Notification {
+  id        String           @id @default(cuid())
+  title     String
+  content   String?
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  // 关联关系
+  userId    String
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // 关联的资源（可选）
+  resourceType String? // 'task', 'project', 'comment' 等
+  resourceId   String? // 对应资源的ID
+
+  @@map("notifications")
+}
+
+// ===================================
+// 时间与工时管理
+// ===================================
+
+// 时间记录表
+model TimeLog {
+  id          String    @id @default(cuid())
+  description String?
+  hours       Float
+  date        DateTime
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // 关联关系
+  taskId      String
+  task        Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  userId      String
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("time_logs")
+}
+
+// ===================================
+// 枚举类型定义
+// ===================================
+
+enum TeamMemberRole {
+  LEADER
+  MEMBER
+}
+
+enum ProjectMemberRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum ProjectStatus {
+  PLANNING    // 规划中
+  ACTIVE      // 进行中
+  ON_HOLD     // 暂停
+  COMPLETED   // 已完成
+  CANCELLED   // 已取消
+}
+
+enum TaskStatus {
+  TODO        // 待办
+  IN_PROGRESS // 进行中
+  IN_REVIEW   // 待审查
+  DONE        // 已完成
+  CANCELLED   // 已取消
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum DependencyType {
+  FINISH_TO_START // 前置任务完成后，当前任务才能开始
+  START_TO_START  // 前置任务开始后，当前任务才能开始
+  FINISH_TO_FINISH // 前置任务完成后，当前任务才能完成
+  START_TO_FINISH  // 前置任务开始后，当前任务才能完成
+}
+
+enum NotificationType {
+  TASK_ASSIGNED     // 任务分配
+  TASK_UPDATED      // 任务更新
+  TASK_COMMENTED    // 任务评论
+  PROJECT_UPDATED   // 项目更新
+  MENTION           // @提及
+  DEADLINE_REMINDER // 截止日期提醒
+  SYSTEM            // 系统通知
+  ISSUE_ASSIGNED    // Issue分配
+  ISSUE_UPDATED     // Issue更新
+  ISSUE_COMMENTED   // Issue评论
+  ISSUE_STATUS_CHANGED // Issue状态变更
+}
+
+// ===================================
+// Issue管理系统
+// ===================================
+
+// Issue表 - 产品建议管理
+model Issue {
+  id          String      @id @default(cuid())
+  title       String      // 标题
+  description String?     // 描述
+  priority    Priority    @default(MEDIUM) // 优先级
+  status      IssueStatus @default(OPEN)   // 状态
+  
+  // === 产品建议特有字段 ===
+  inputSource InputSource // 输入源：用户/内部/数据分析/战略
+  issueType   IssueType   // 类型：功能/优化/Bug/其他
+  
+  // 业务价值评估
+  businessValue   String?   // 商业价值描述
+  userImpact      String?   // 用户影响范围
+  technicalRisk   String?   // 技术风险评估
+  
+  // === 时间管理 ===
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  dueDate     DateTime? // 期望完成时间
+  
+  // === 人员管理 ===
+  creatorId   String
+  creator     User     @relation("IssueCreator", fields: [creatorId], references: [id])
+  
+  assigneeId  String?  // 负责人（通常是PM）
+  assignee    User?    @relation("IssueAssignee", fields: [assigneeId], references: [id])
+  
+  // === 项目关联 ===
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  
+  // === 关联关系 ===
+  // 1对多：一个Issue可能产生多个PRD
+  prds        PRD[]
+  
+  // 1对多：一个Issue最终拆分为多个Task
+  tasks       Task[]   @relation("IssueToTask")
+  
+  // 讨论功能
+  comments    IssueComment[]
+  
+  // 标签系统
+  tags        IssueTag[] @relation("IssueTagRelation")
+  
+  // 附件管理
+  attachments Attachment[] @relation("IssueAttachments")
+  
+  @@map("issues")
+}
+
+// Issue评论表
+model IssueComment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // 关联关系
+  issueId   String
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
+  authorId  String
+  author    User     @relation("IssueCommentAuthor", fields: [authorId], references: [id])
+  
+  // 回复功能
+  parentId  String?
+  parent    IssueComment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   IssueComment[] @relation("CommentReplies")
+  
+  @@map("issue_comments")
+}
+
+// Issue标签表
+model IssueTag {
+  id      String @id @default(cuid())
+  name    String
+  color   String @default("#6B7280") // 标签颜色
+  
+  // 关联关系
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  issues    Issue[] @relation("IssueTagRelation")
+  
+  @@unique([projectId, name])
+  @@map("issue_tags")
+}
+
+// PRD表 - 产品需求文档
+model PRD {
+  id          String    @id @default(cuid())
+  title       String    // PRD标题
+  content     String?   // PRD内容
+  version     String    @default("1.0") // 版本号
+  status      PRDStatus @default(DRAFT) // PRD状态
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // 关联关系
+  issueId     String
+  issue       Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  
+  authorId    String   // PRD作者
+  author      User     @relation("PRDAuthor", fields: [authorId], references: [id])
+  
+  // PRD评审
+  reviews     PRDReview[]
+  
+  @@map("prds")
+}
+
+// PRD评审表
+model PRDReview {
+  id          String       @id @default(cuid())
+  status      ReviewStatus // 评审结果
+  comment     String?      // 评审意见
+  createdAt   DateTime     @default(now())
+  
+  // 关联关系
+  prdId       String
+  prd         PRD          @relation(fields: [prdId], references: [id], onDelete: Cascade)
+  
+  reviewerId  String       // 评审者
+  reviewer    User         @relation("PRDReviewer", fields: [reviewerId], references: [id])
+  
+  @@map("prd_reviews")
+}
+
+// ===================================
+// Issue相关枚举类型
+// ===================================
+
+// Issue状态流转
+enum IssueStatus {
+  OPEN           // 新建 - 刚提出的建议
+  IN_DISCUSSION  // 讨论中 - 产品团队评估中
+  APPROVED       // 已批准 - 决定要做
+  IN_PRD         // PRD中 - 正在写需求文档
+  IN_DEVELOPMENT // 开发中 - 已拆分为开发任务
+  IN_TESTING     // 测试中 - 功能开发完成，测试中
+  IN_ACCEPTANCE  // 验收中 - 测试完成，产品验收中
+  COMPLETED      // 已完成 - 整个需求已上线
+  REJECTED       // 已拒绝 - 决定不做
+  CANCELLED      // 已取消 - 中途取消
+}
+
+// 输入源类型（移除KOL）
+enum InputSource {
+  USER_FEEDBACK  // 用户反馈
+  INTERNAL       // 内部反馈
+  DATA_ANALYSIS  // 数据分析
+  STRATEGY       // 战略需求
+}
+
+// Issue类型
+enum IssueType {
+  FEATURE        // 新功能
+  ENHANCEMENT    // 功能优化
+  BUG_FIX        // 问题修复
+  TECHNICAL_DEBT // 技术债务
+  RESEARCH       // 调研需求
+}
+
+// PRD状态
+enum PRDStatus {
+  DRAFT          // 草稿
+  REVIEW         // 评审中
+  APPROVED       // 已批准
+  REJECTED       // 已拒绝
+}
+
+// 评审状态
+enum ReviewStatus {
+  PENDING        // 待评审
+  APPROVED       // 通过
+  REJECTED       // 拒绝
+  NEEDS_REVISION // 需要修改
+}

@@ -1,0 +1,170 @@
+# 项目管理系统 API 测试文件
+# 使用 VS Code REST Client 扩展或类似工具测试
+
+@baseUrl = http://localhost:3000
+@graphqlEndpoint = {{baseUrl}}/graphql
+
+### 1. 用户登录
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+
+{
+  "query": "mutation Login($input: LoginInputType!) { login(input: $input) { access_token user { id name email username roles permissions } } }",
+  "variables": {
+    "input": {
+      "email": "admin@company.com",
+      "password": "admin123456"
+    }
+  }
+}
+
+### 2. 获取当前用户信息 (需要先登录获取token)
+# @name login
+# 复制上面登录返回的access_token到下面的Authorization header
+
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "query Me { me { id name email username roles permissions department { id name } } }"
+}
+
+### 3. 获取所有用户列表
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "query Users($take: Int, $skip: Int) { users(take: $take, skip: $skip) { users { id name email username isActive department { name } roles { name } } total } }",
+  "variables": {
+    "take": 10,
+    "skip": 0
+  }
+}
+
+### 4. 获取所有项目列表
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "query Projects($take: Int, $skip: Int) { projects(take: $take, skip: $skip) { projects { id name key status priority owner { name } team { name } memberCount taskCount } total } }",
+  "variables": {
+    "take": 10,
+    "skip": 0
+  }
+}
+
+### 5. 获取特定项目详情
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "query Project($id: String!) { project(id: $id) { id name key description status priority startDate endDate owner { id name email } team { id name } members { id role user { id name } } tasks { id title status priority assignee { name } } } }",
+  "variables": {
+    "id": "SAMPLE001"
+  }
+}
+
+### 6. 创建新项目
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "mutation CreateProject($input: CreateProjectInputType!) { createProject(input: $input) { id name key status owner { name } } }",
+  "variables": {
+    "input": {
+      "name": "测试项目",
+      "key": "TEST001",
+      "description": "这是一个测试项目",
+      "status": "PLANNING",
+      "priority": "MEDIUM"
+    }
+  }
+}
+
+### 7. 获取任务列表 (按项目筛选)
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "query Tasks($filters: TaskFiltersInput, $take: Int) { tasks(filters: $filters, take: $take) { tasks { id title status priority assignee { name } creator { name } project { name } createdAt } total } }",
+  "variables": {
+    "filters": {
+      "projectId": "SAMPLE001"
+    },
+    "take": 10
+  }
+}
+
+### 8. 创建新任务
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "mutation CreateTask($input: CreateTaskInputType!) { createTask(input: $input) { id title status priority project { name } assignee { name } } }",
+  "variables": {
+    "input": {
+      "title": "测试任务",
+      "description": "这是一个测试任务",
+      "status": "TODO",
+      "priority": "MEDIUM",
+      "projectId": "SAMPLE001",
+      "estimatedHours": 8
+    }
+  }
+}
+
+### 9. 获取团队列表
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "query Teams($take: Int) { teams(take: $take) { teams { id name description department { name } members { role user { name } } projects { id name status } } total } }",
+  "variables": {
+    "take": 10
+  }
+}
+
+### 10. 用户注册 (创建新用户)
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+
+{
+  "query": "mutation Register($input: RegisterInputType!) { register(input: $input) { access_token user { id name email username roles } } }",
+  "variables": {
+    "input": {
+      "email": "test@company.com",
+      "username": "testuser",
+      "name": "测试用户",
+      "password": "123456"
+    }
+  }
+}
+
+### 11. 获取用户统计信息
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "query UserStats($id: String) { userStats(id: $id) { totalTasks completedTasks inProgressTasks ownedProjects totalWorkHours thisMonthWorkHours completionRate } }"
+}
+
+### 12. 获取项目统计信息
+POST {{graphqlEndpoint}}
+Content-Type: application/json
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+
+{
+  "query": "query ProjectStats($id: String!) { projectStats(id: $id) { totalTasks completedTasks inProgressTasks todoTasks totalMembers totalWorkHours completionRate } }",
+  "variables": {
+    "id": "SAMPLE001"
+  }
+}
