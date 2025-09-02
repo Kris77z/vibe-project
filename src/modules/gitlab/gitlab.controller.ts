@@ -153,3 +153,4 @@ export class GitlabController {
     return { success: true, message: 'GitLab issue created successfully' };
   }
 }
+

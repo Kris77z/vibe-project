@@ -47,3 +47,4 @@ export default registerAs('gitlab', () => ({
     },
   },
 }));
+

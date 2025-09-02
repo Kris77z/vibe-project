@@ -21,6 +21,7 @@ model User {
   email     String   @unique
   username  String   @unique
   name      String
+  password  String   // 加密后的密码
   avatar    String?
   phone     String?
   isActive  Boolean  @default(true)

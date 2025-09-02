@@ -7,3 +7,4 @@ import { TeamsResolver } from './teams.resolver';
   exports: [TeamsService],
 })
 export class TeamsModule {}
+

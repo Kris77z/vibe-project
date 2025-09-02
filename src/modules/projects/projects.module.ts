@@ -7,3 +7,4 @@ import { ProjectsResolver } from './projects.resolver';
   exports: [ProjectsService],
 })
 export class ProjectsModule {}
+

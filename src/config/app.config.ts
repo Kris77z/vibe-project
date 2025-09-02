@@ -39,3 +39,4 @@ export default registerAs('app', () => ({
     limit: parseInt(process.env.RATE_LIMIT_MAX || '100', 10), // 100次请求
   },
 }));
+

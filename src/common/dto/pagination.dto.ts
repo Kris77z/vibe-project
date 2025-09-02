@@ -56,3 +56,4 @@ export function createPaginationInfo(
     hasPreviousPage: currentPage > 1,
   };
 }
+

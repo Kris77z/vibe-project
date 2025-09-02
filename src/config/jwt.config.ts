@@ -7,3 +7,4 @@ export default registerAs('jwt', () => ({
   issuer: process.env.JWT_ISSUER || 'vibe-project',
   audience: process.env.JWT_AUDIENCE || 'vibe-project-users',
 }));
+

@@ -9,3 +9,4 @@ import { PrismaModule } from '../../common/prisma/prisma.module';
   exports: [IssuesService],
 })
 export class IssuesModule {}
+

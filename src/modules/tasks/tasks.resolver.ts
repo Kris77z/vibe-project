@@ -306,6 +306,9 @@ class TaskFiltersInput {
   @Field({ nullable: true })
   projectId?: string;
 
+  @Field({ nullable: true })
+  issueId?: string;
+
   @Field(() => TaskStatus, { nullable: true })
   status?: TaskStatus;
 

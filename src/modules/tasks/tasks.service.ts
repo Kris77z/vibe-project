@@ -31,6 +31,7 @@ export interface UpdateTaskInput {
 
 export interface TaskFilters {
   projectId?: string;
+  issueId?: string;
   status?: TaskStatus;
   priority?: Priority;
   assigneeId?: string;
@@ -64,6 +65,10 @@ export class TasksService {
     if (filters) {
       if (filters.projectId) {
         where.projectId = filters.projectId;
+      }
+
+      if (filters.issueId) {
+        where.issueId = filters.issueId;
       }
       
       if (filters.status) {
@@ -735,3 +740,4 @@ export class TasksService {
     return hasPermission || false;
   }
 }
+

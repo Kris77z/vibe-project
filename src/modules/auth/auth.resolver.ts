@@ -4,6 +4,7 @@ import { AuthService, LoginInput, RegisterInput, AuthPayload } from './auth.serv
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { ObjectType, Field, InputType } from '@nestjs/graphql';
+import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
 
 @ObjectType()
 class AuthUser {
@@ -41,24 +42,34 @@ class AuthResponse {
 @InputType()
 class LoginInputType {
   @Field()
+  @IsEmail()
+  @IsNotEmpty()
   email: string;
 
   @Field()
+  @IsNotEmpty()
+  @MinLength(6)
   password: string;
 }
 
 @InputType()
 class RegisterInputType {
   @Field()
+  @IsEmail()
+  @IsNotEmpty()
   email: string;
 
   @Field()
+  @IsNotEmpty()
   username: string;
 
   @Field()
+  @IsNotEmpty()
   name: string;
 
   @Field()
+  @IsNotEmpty()
+  @MinLength(6)
   password: string;
 
   @Field({ nullable: true })
@@ -97,3 +108,4 @@ export class AuthResolver {
     return this.authService.refreshToken(user.sub);
   }
 }
+

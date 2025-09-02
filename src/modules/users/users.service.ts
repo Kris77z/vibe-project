@@ -212,8 +212,8 @@ export class UsersService {
       data: {
         email,
         username,
+        password: hashedPassword,
         ...userData,
-        // 暂时不存储加密密码，等待后续修复
       },
       include: {
         department: true,
@@ -441,3 +441,4 @@ export class UsersService {
     };
   }
 }
+

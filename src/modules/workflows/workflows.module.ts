@@ -7,3 +7,4 @@ import { WorkflowsResolver } from './workflows.resolver';
   exports: [WorkflowsService],
 })
 export class WorkflowsModule {}
+

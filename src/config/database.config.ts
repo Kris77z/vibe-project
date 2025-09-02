@@ -13,3 +13,4 @@ export default registerAs('database', () => ({
   // 查询日志
   logging: process.env.NODE_ENV === 'development',
 }));
+

@@ -57,7 +57,7 @@ export class AuthService {
       },
     });
 
-    if (user && await bcrypt.compare(password, password)) {
+    if (user && await bcrypt.compare(password, user.password)) {
       const { ...result } = user;
       return result;
     }
@@ -94,10 +94,8 @@ export class AuthService {
       throw new UnauthorizedException('账户已被禁用');
     }
 
-    // 临时：如果是种子数据的admin用户，直接验证明文密码
-    const isValidPassword = email === 'admin@company.com' 
-      ? password === 'admin123456'
-      : await bcrypt.compare(password, password); // 这里需要存储加密密码
+    // 验证密码
+    const isValidPassword = await bcrypt.compare(password, user.password);
 
     if (!isValidPassword) {
       throw new UnauthorizedException('密码错误');
@@ -162,8 +160,8 @@ export class AuthService {
         email,
         username,
         name,
+        password: hashedPassword,
         departmentId,
-        // 暂时存储明文密码，实际应该存储 hashedPassword
       },
       include: {
         department: true,
@@ -289,3 +287,4 @@ export class AuthService {
     };
   }
 }
+
