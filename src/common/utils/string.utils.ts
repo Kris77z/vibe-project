@@ -162,3 +162,4 @@ export function stringToColor(str: string): string {
   return `hsl(${hue}, 70%, 50%)`;
 }
 
+

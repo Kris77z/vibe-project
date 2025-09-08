@@ -39,6 +39,16 @@ async function main() {
     { name: 'timelog:read', resource: 'timelog', action: 'read', description: '查看工时' },
     { name: 'timelog:update', resource: 'timelog', action: 'update', description: '更新工时' },
     { name: 'timelog:delete', resource: 'timelog', action: 'delete', description: '删除工时' },
+
+    // 字段与数据可见性（新增）
+    { name: 'contact:read', resource: 'contact', action: 'read', description: '查看联系方式（内部）' },
+    { name: 'user_sensitive:read', resource: 'user_sensitive', action: 'read', description: '查看敏感字段' },
+    { name: 'user_highly_sensitive:read', resource: 'user_highly_sensitive', action: 'read', description: '查看极敏感字段' },
+    { name: 'export:sensitive', resource: 'export', action: 'sensitive', description: '导出敏感字段' },
+    { name: 'export:highly_sensitive', resource: 'export', action: 'highly_sensitive', description: '导出极敏感字段' },
+
+    // 组织可见性配置
+    { name: 'org_visibility:configure', resource: 'org_visibility', action: 'configure', description: '配置组织可见性与字段集' },
   ];
 
   for (const permission of permissions) {
@@ -87,6 +97,16 @@ async function main() {
     create: {
       name: 'member',
       description: '普通成员，基础的项目参与权限',
+      isSystem: true,
+    },
+  });
+
+  const hrRole = await prisma.role.upsert({
+    where: { name: 'hr_manager' },
+    update: {},
+    create: {
+      name: 'hr_manager',
+      description: 'HR敏感资料管理',
       isSystem: true,
     },
   });
@@ -179,8 +199,40 @@ async function main() {
     });
   }
 
+  // HR 管理员 - 敏感与极敏感查看（默认不授予导出极敏感）
+  const hrPermissionNames = [
+    'user_sensitive:read',
+    'user_highly_sensitive:read',
+    'contact:read',
+    'export:sensitive',
+  ];
+  const hrPermissions = allPermissions.filter(p => hrPermissionNames.includes(p.name));
+  for (const permission of hrPermissions) {
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: hrRole.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: hrRole.id,
+        permissionId: permission.id,
+      },
+    });
+  }
+
   // 4. 创建默认部门
   console.log('创建默认部门...');
+  // 先创建默认公司
+  console.log('创建默认公司...');
+  const defaultCompany = await prisma.company.upsert({
+    where: { name: '默认公司' },
+    update: {},
+    create: { name: '默认公司', code: 'DEFAULT' },
+  });
+
   const defaultDepartment = await prisma.department.upsert({
     where: { id: 'default-dept' },
     update: {},
@@ -188,6 +240,7 @@ async function main() {
       id: 'default-dept',
       name: '技术部',
       description: '默认技术部门',
+      companyId: defaultCompany.id,
     },
   });
 
@@ -204,6 +257,87 @@ async function main() {
     },
   });
 
+  // 5b. 初始化字段分级与字段集（最小集）
+  console.log('初始化字段分级与字段集...');
+  const fieldDefs = [
+    { key: 'name', label: '姓名', classification: 'PUBLIC', selfEditable: false },
+    { key: 'department', label: '部门', classification: 'PUBLIC', selfEditable: false },
+    { key: 'position', label: '职务/岗位', classification: 'PUBLIC', selfEditable: false },
+    { key: 'landline', label: '座机', classification: 'PUBLIC', selfEditable: true },
+    { key: 'employee_no', label: '工号', classification: 'INTERNAL', selfEditable: false },
+    { key: 'employment_status', label: '在职状态', classification: 'INTERNAL', selfEditable: false },
+    { key: 'join_date', label: '入职日期', classification: 'INTERNAL', selfEditable: false },
+
+    { key: 'contact_work_email', label: '工作邮箱', classification: 'PUBLIC', selfEditable: false },
+    { key: 'contact_phone', label: '手机号码', classification: 'INTERNAL', selfEditable: true },
+    { key: 'contact_wechat', label: '微信', classification: 'INTERNAL', selfEditable: true },
+    { key: 'contact_qq', label: 'QQ', classification: 'INTERNAL', selfEditable: true },
+    { key: 'contact_personal_email', label: '个人邮箱', classification: 'INTERNAL', selfEditable: true },
+
+    { key: 'vacation_balance', label: '假期余额', classification: 'SENSITIVE', selfEditable: false },
+
+    { key: 'id_number', label: '证件号码', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'bank_card_number', label: '银行卡号', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_id_card', label: '身份证附件', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+  ];
+
+  for (const fd of fieldDefs) {
+    await prisma.fieldDefinition.upsert({
+      where: { key: fd.key },
+      update: {
+        label: fd.label,
+        classification: fd.classification as any,
+        selfEditable: fd.selfEditable,
+      },
+      create: {
+        key: fd.key,
+        label: fd.label,
+        classification: fd.classification as any,
+        selfEditable: fd.selfEditable,
+      },
+    });
+  }
+
+  // 创建字段集
+  const fieldSetEnterprise = await prisma.fieldSet.upsert({
+    where: { name: '企业内展示集' },
+    update: {},
+    create: { name: '企业内展示集', description: '姓名/部门/职务/工作邮箱/座机', isSystem: true },
+  });
+  const fieldSetOrg = await prisma.fieldSet.upsert({
+    where: { name: '组织信息集' },
+    update: {},
+    create: { name: '组织信息集', description: '部门/岗位/组织信息', isSystem: true },
+  });
+  const fieldSetContact = await prisma.fieldSet.upsert({
+    where: { name: '联系方式集（内部）' },
+    update: {},
+    create: { name: '联系方式集（内部）', description: '手机/微信/QQ/个人邮箱', isSystem: true },
+  });
+  const fieldSetLeave = await prisma.fieldSet.upsert({
+    where: { name: '假勤信息集（内部）' },
+    update: {},
+    create: { name: '假勤信息集（内部）', description: '假期余额', isSystem: true },
+  });
+
+  // 组装字段集项（先清空再写入，使用upsert覆盖）
+  const connectByKey = async (setId: string, keys: string[]) => {
+    for (let i = 0; i < keys.length; i++) {
+      const f = await prisma.fieldDefinition.findUnique({ where: { key: keys[i] } });
+      if (!f) continue;
+      await prisma.fieldSetItem.upsert({
+        where: { fieldSetId_fieldId: { fieldSetId: setId, fieldId: f.id } as any },
+        update: { order: i + 1 },
+        create: { fieldSetId: setId, fieldId: f.id, order: i + 1 },
+      });
+    }
+  };
+
+  await connectByKey(fieldSetEnterprise.id, ['name', 'department', 'position', 'contact_work_email', 'landline']);
+  await connectByKey(fieldSetOrg.id, ['department', 'position']);
+  await connectByKey(fieldSetContact.id, ['contact_phone', 'contact_wechat', 'contact_qq', 'contact_personal_email']);
+  await connectByKey(fieldSetLeave.id, ['vacation_balance']);
+
   // 6. 创建超级管理员用户
   console.log('创建超级管理员用户...');
   const hashedPassword = await bcrypt.hash('admin123456', 10);
@@ -217,6 +351,7 @@ async function main() {
       name: '系统管理员',
       password: hashedPassword,
       departmentId: defaultDepartment.id,
+      companyId: defaultCompany.id,
     },
   });
 
@@ -232,6 +367,80 @@ async function main() {
     create: {
       userId: adminUser.id,
       roleId: superAdminRole.id,
+    },
+  });
+
+  // 创建你指定的超级管理员账号
+  console.log('创建指定的超级管理员账户 jiangziyi@applychart.com ...');
+  const userSpecifiedHashedPassword = await bcrypt.hash('12345678', 10);
+  const specifiedSuperAdmin = await prisma.user.upsert({
+    where: { email: 'jiangziyi@applychart.com' },
+    update: {},
+    create: {
+      email: 'jiangziyi@applychart.com',
+      username: 'jiangziyi',
+      name: '姜子逸',
+      password: userSpecifiedHashedPassword,
+      departmentId: defaultDepartment.id,
+      companyId: defaultCompany.id,
+    },
+  });
+
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: specifiedSuperAdmin.id,
+        roleId: superAdminRole.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: specifiedSuperAdmin.id,
+      roleId: superAdminRole.id,
+    },
+  });
+
+  // 6b. 创建部门负责人账户（种子）
+  console.log('创建部门负责人账户 yejieli@applychart.com ...');
+  const deptLeaderPasswordHash = await bcrypt.hash('12345678', 10);
+  const deptLeader = await prisma.user.upsert({
+    where: { email: 'yejieli@applychart.com' },
+    update: { name: 'Jelly' },
+    create: {
+      email: 'yejieli@applychart.com',
+      username: 'yejieli',
+      name: 'Jelly',
+      password: deptLeaderPasswordHash,
+      departmentId: defaultDepartment.id,
+      companyId: defaultCompany.id,
+    },
+  });
+
+  // 设为默认部门负责人
+  await prisma.department.update({
+    where: { id: defaultDepartment.id },
+    data: { leaderUserIds: { push: deptLeader.id } },
+  });
+
+  // 设置 Jelly 的默认个体可见性为本部门（DEPT_ONLY）
+  await prisma.userVisibility.upsert({
+    where: { userId: deptLeader.id },
+    update: { hidden: false, viewScope: 'DEPT_ONLY' as any },
+    create: { userId: deptLeader.id, hidden: false, viewScope: 'DEPT_ONLY' as any },
+  });
+
+  // 授予项目经理角色以具备用户读取等基础权限
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: deptLeader.id,
+        roleId: managerRole.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: deptLeader.id,
+      roleId: managerRole.id,
     },
   });
 
@@ -722,6 +931,8 @@ async function main() {
   console.log('产品经理: pm@company.com / admin123456');
   console.log('开发工程师: dev@company.com / admin123456');
   console.log('测试工程师: test@company.com / admin123456');
+  console.log('部门负责人: yejieli@applychart.com / 12345678');
+  console.log('指定超级管理员: jiangziyi@applychart.com / 12345678');
   console.log('='.repeat(50));
   console.log('示例数据：');
   console.log(`- 项目: ${sampleProject.name} (${sampleProject.key})`);

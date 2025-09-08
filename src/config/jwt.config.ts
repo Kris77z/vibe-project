@@ -8,3 +8,4 @@ export default registerAs('jwt', () => ({
   audience: process.env.JWT_AUDIENCE || 'vibe-project-users',
 }));
 
+

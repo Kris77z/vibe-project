@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, ForbiddenException } 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { User, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { AccessControlService } from '../access-control/access-control.service';
 
 export interface CreateUserInput {
   email: string;
@@ -35,10 +36,15 @@ export interface UserFilters {
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private acl: AccessControlService) {}
 
-  async findAll(filters?: UserFilters, skip?: number, take?: number) {
-    const where: Prisma.UserWhereInput = {};
+  async findAll(filters?: UserFilters, skip?: number, take?: number, currentUserId?: string) {
+    // 基于组织可见性生成基础 where
+    const baseWhere: Prisma.UserWhereInput = currentUserId
+      ? await this.acl.getAccessibleUserWhere(currentUserId)
+      : {};
+
+    const where: Prisma.UserWhereInput = { ...baseWhere };
 
     if (filters) {
       if (filters.departmentId) {
@@ -278,6 +284,21 @@ export class UsersService {
 
   async updateRoles(updateRolesInput: UpdateUserRolesInput, currentUserId: string) {
     const { userId, roleIds } = updateRolesInput;
+
+    // 只有 super_admin 可以分配/回收管理员及高权限角色
+    const current = await this.prisma.user.findUnique({
+      where: { id: currentUserId },
+      include: { userRoles: { include: { role: true } } },
+    });
+    const isSuperAdmin = current?.userRoles?.some(ur => ur.role.name === 'super_admin');
+    if (!isSuperAdmin) {
+      // 检查目标角色是否包含高权限（admin/hr_manager/super_admin）
+      const targetRoles = await this.prisma.role.findMany({ where: { id: { in: roleIds } } });
+      const containsHigh = targetRoles.some(r => ['admin', 'hr_manager', 'super_admin'].includes(r.name));
+      if (containsHigh) {
+        throw new ForbiddenException('仅超级管理员可授予/回收管理员或高权限角色');
+      }
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },

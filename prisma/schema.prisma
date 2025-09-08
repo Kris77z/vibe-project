@@ -18,6 +18,7 @@ datasource db {
 // 用户表
 model User {
   id        String   @id @default(cuid())
+  companyId String?
   email     String   @unique
   username  String   @unique
   name      String
@@ -31,6 +32,7 @@ model User {
   // 关联关系
   departmentId String?
   department   Department? @relation(fields: [departmentId], references: [id])
+  company      Company?    @relation(fields: [companyId], references: [id])
   
   // 用户角色 (多对多)
   userRoles UserRole[]
@@ -63,10 +65,17 @@ model User {
   prdAuthored      PRD[]          @relation("PRDAuthor")
   prdReviews       PRDReview[]    @relation("PRDReviewer")
   
+  // 临时访问授权关联
+  grantsGranted    TemporaryAccessGrant[] @relation("GrantToGrantee")
+  grantsCreated    TemporaryAccessGrant[] @relation("GrantCreatedBy")
+  
   // GitLab集成
   gitlabUserId     Int?
   gitlabUsername   String?
   gitlabToken      String? // 加密存储
+  
+  // 个体可见性配置（可选）
+  visibility   UserVisibility?
   
   @@map("users")
 }
@@ -74,6 +83,7 @@ model User {
 // 部门表
 model Department {
   id          String   @id @default(cuid())
+  companyId   String?
   name        String
   description String?
   parentId    String?
@@ -86,8 +96,25 @@ model Department {
   // 关联关系
   users       User[]
   teams       Team[]
+  company     Company? @relation(fields: [companyId], references: [id])
+
+  // 部门负责人（多用户ID）
+  leaderUserIds String[] @default([])
 
   @@map("departments")
+}
+
+// 公司表（硬边界）
+model Company {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  code      String?  @unique
+  createdAt DateTime @default(now())
+
+  users       User[]
+  departments Department[]
+
+  @@map("companies")
 }
 
 // 团队表
@@ -181,6 +208,93 @@ model RolePermission {
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
+}
+
+// ===================================
+// 字段分级与字段集（可配置）
+// ===================================
+
+enum FieldClassification {
+  PUBLIC
+  INTERNAL
+  SENSITIVE
+  HIGHLY_SENSITIVE
+}
+
+model FieldDefinition {
+  id             String              @id @default(cuid())
+  key            String              @unique
+  label          String
+  classification FieldClassification
+  selfEditable   Boolean             @default(false)
+  description    String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  // 关联
+  fieldSetItems  FieldSetItem[]
+
+  @@map("field_definitions")
+}
+
+model FieldSet {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?
+  isSystem    Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  items       FieldSetItem[]
+
+  @@map("field_sets")
+}
+
+model FieldSetItem {
+  id         String         @id @default(cuid())
+  fieldSetId String
+  fieldId    String
+  order      Int?
+
+  fieldSet   FieldSet       @relation(fields: [fieldSetId], references: [id], onDelete: Cascade)
+  field      FieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldSetId, fieldId])
+  @@map("field_set_items")
+}
+
+// 临时访问授权（MVP）
+model TemporaryAccessGrant {
+  id                  String   @id @default(cuid())
+  granteeId           String
+  resource            String   // e.g., 'user'
+  fieldKey            String   // e.g., 'contact_phone'
+  action              String   // 'read' | 'download' | 'export'
+  startAt             DateTime
+  endAt               DateTime
+  allowCrossBoundary  Boolean  @default(false)
+  scopeDepartmentId   String?  // 限定作用范围：指定部门（含其下属）
+  createdById         String
+  createdAt           DateTime @default(now())
+
+  grantee   User @relation("GrantToGrantee", fields: [granteeId], references: [id], onDelete: Cascade)
+  createdBy User @relation("GrantCreatedBy", fields: [createdById], references: [id])
+
+  @@index([granteeId, resource, fieldKey, action])
+  @@map("temporary_access_grants")
+}
+
+// 个体可见性规则（隐藏/仅看自己/仅看本部门）
+model UserVisibility {
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  hidden    Boolean   @default(false)
+  viewScope ViewScope @default(ALL)
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_visibility")
 }
 
 // ===================================
@@ -513,6 +627,13 @@ enum DependencyType {
   START_TO_START  // 前置任务开始后，当前任务才能开始
   FINISH_TO_FINISH // 前置任务完成后，当前任务才能完成
   START_TO_FINISH  // 前置任务开始后，当前任务才能完成
+}
+
+// 可见性范围
+enum ViewScope {
+  ALL
+  SELF_ONLY
+  DEPT_ONLY
 }
 
 enum NotificationType {

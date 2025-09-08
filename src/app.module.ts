@@ -25,6 +25,8 @@ import { WorkflowsModule } from './modules/workflows/workflows.module';
 import { IssuesModule } from './modules/issues/issues.module';
 import { GitlabModule } from './modules/gitlab/gitlab.module';
 import { HealthModule } from './modules/health/health.module';
+import { AccessControlModule } from './modules/access-control/access-control.module';
+import { FieldVisibilityModule } from './modules/field-visibility/field-visibility.module';
 
 @Module({
   imports: [
@@ -64,6 +66,8 @@ import { HealthModule } from './modules/health/health.module';
     IssuesModule,
     GitlabModule,
     HealthModule,
+    AccessControlModule,
+    FieldVisibilityModule,
   ],
   providers: [
     // 全局异常过滤器
