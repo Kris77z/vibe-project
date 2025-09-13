@@ -1,6 +1,6 @@
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
-import { UsersService, CreateUserInput, UpdateUserInput, UpdateUserRolesInput, UserFilters } from './users.service';
+import { UsersService, CreateUserInput, UpdateUserInput, UpdateUserRolesInput, UserFilters, UpdateUserFieldValueEntry } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -8,6 +8,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ObjectType, Field, InputType, ID } from '@nestjs/graphql';
 import { FieldVisibilityService } from '../field-visibility/field-visibility.service';
 import { AccessControlService } from '../access-control/access-control.service';
+import { StorageService } from '../storage/storage.service';
 
 @ObjectType()
 export class Department {
@@ -101,6 +102,24 @@ class UserStats {
 }
 
 @ObjectType()
+class UserFieldValueType {
+  @Field(() => ID)
+  id: string;
+
+  @Field()
+  fieldKey: string;
+
+  @Field({ nullable: true })
+  valueString?: string;
+  @Field({ nullable: true })
+  valueNumber?: number;
+  @Field({ nullable: true })
+  valueDate?: Date;
+  @Field({ nullable: true })
+  valueJson?: string;
+}
+
+@ObjectType()
 export class User {
   @Field(() => ID)
   id: string;
@@ -146,6 +165,59 @@ export class User {
 
   @Field(() => [Project], { nullable: true })
   ownedProjects?: Project[];
+
+  // EAV 字段
+  @Field(() => [UserFieldValueType], { nullable: true })
+  fieldValues?: UserFieldValueType[];
+  
+  // 多明细（简化返回，直接按实体返回）
+  @Field(() => [String], { nullable: true }) educations?: any[];
+  @Field(() => [String], { nullable: true }) workExperiences?: any[];
+  @Field(() => [String], { nullable: true }) familyMembers?: any[];
+  @Field(() => [String], { nullable: true }) emergencyContacts?: any[];
+  @Field(() => [String], { nullable: true }) contracts?: any[];
+  @Field(() => [String], { nullable: true }) documents?: any[];
+  @Field(() => [String], { nullable: true }) bankAccounts?: any[];
+  @Field(() => [String], { nullable: true }) attachments?: any[];
+}
+
+@ObjectType()
+class LeaveBalanceItem {
+  @Field()
+  type: string;
+
+  @Field()
+  total: number; // 发放/补贴总额（>=0）
+
+  @Field()
+  used: number; // 消耗总额（<=0）
+
+  @Field()
+  available: number; // 可用 = total + used
+}
+
+@InputType()
+class CreateUserAttachmentInput {
+  @Field()
+  userId: string;
+
+  @Field()
+  attachmentType: string; // 对应 Prisma 的 AttachmentType 枚举 key
+
+  @Field()
+  filename: string;
+
+  @Field()
+  fileUrl: string; // 先用外部URL或已上传地址；后续改签名URL上传
+
+  @Field({ nullable: true })
+  mimeType?: string;
+
+  @Field(() => Int, { nullable: true })
+  fileSize?: number;
+
+  @Field({ nullable: true })
+  notes?: string;
 }
 
 @ObjectType()
@@ -212,6 +284,101 @@ class UpdateUserInputType {
 }
 
 @InputType()
+class UpdateUserFieldValueEntryInput {
+  @Field()
+  fieldKey: string;
+
+  @Field({ nullable: true })
+  valueString?: string;
+  @Field({ nullable: true })
+  valueNumber?: number;
+  @Field({ nullable: true })
+  valueDate?: string;
+  @Field({ nullable: true })
+  valueJson?: String;
+}
+
+@InputType()
+class UpsertEducationInput {
+  @Field({ nullable: true }) id?: string;
+  @Field() userId: string;
+  @Field({ nullable: true }) degree?: string;
+  @Field({ nullable: true }) school?: string;
+  @Field({ nullable: true }) enrollDate?: string;
+  @Field({ nullable: true }) graduateDate?: string;
+  @Field({ nullable: true }) major?: string;
+  @Field({ nullable: true }) studyForm?: string;
+  @Field({ nullable: true }) schoolingYears?: number;
+  @Field({ nullable: true }) degreeName?: string;
+  @Field({ nullable: true }) awardingCountry?: string;
+  @Field({ nullable: true }) awardingInstitution?: string;
+  @Field({ nullable: true }) awardingDate?: string;
+  @Field({ nullable: true }) languageLevel?: string;
+}
+
+@InputType()
+class UpsertWorkExperienceInput {
+  @Field({ nullable: true }) id?: string;
+  @Field() userId: string;
+  @Field({ nullable: true }) company?: string;
+  @Field({ nullable: true }) department?: string;
+  @Field({ nullable: true }) position?: string;
+  @Field({ nullable: true }) startDate?: string;
+  @Field({ nullable: true }) endDate?: string;
+}
+
+@InputType()
+class UpsertEmergencyContactInput {
+  @Field({ nullable: true }) id?: string;
+  @Field() userId: string;
+  @Field() name: string;
+  @Field({ nullable: true }) relation?: string;
+  @Field() phone: string;
+  @Field({ nullable: true }) address?: string;
+}
+
+@InputType()
+class UpsertFamilyMemberInput {
+  @Field({ nullable: true }) id?: string;
+  @Field() userId: string;
+  @Field() name: string;
+  @Field() relation: string;
+  @Field({ nullable: true }) organization?: string;
+  @Field({ nullable: true }) contact?: string;
+}
+
+@InputType()
+class UpsertContractInput {
+  @Field({ nullable: true }) id?: string;
+  @Field() userId: string;
+  @Field({ nullable: true }) contractNo?: string;
+  @Field({ nullable: true }) company?: string;
+  @Field({ nullable: true }) contractType?: string;
+  @Field({ nullable: true }) startDate?: string;
+  @Field({ nullable: true }) endDate?: string;
+  @Field({ nullable: true }) actualEndDate?: string;
+  @Field({ nullable: true }) signedTimes?: number;
+}
+
+@InputType()
+class UpsertDocumentInput {
+  @Field({ nullable: true }) id?: string;
+  @Field() userId: string;
+  @Field() docType: string;
+  @Field() docNumber: string;
+  @Field({ nullable: true }) validUntil?: string;
+}
+
+@InputType()
+class UpsertBankAccountInput {
+  @Field({ nullable: true }) id?: string;
+  @Field() userId: string;
+  @Field({ nullable: true }) accountName?: string;
+  @Field({ nullable: true }) bankName?: string;
+  @Field({ nullable: true }) bankBranch?: string;
+  @Field({ nullable: true }) accountNumber?: string;
+}
+@InputType()
 class UpdateUserRolesInputType {
   @Field()
   userId: string;
@@ -238,6 +405,7 @@ export class UsersResolver {
     private usersService: UsersService,
     private fieldVisibility: FieldVisibilityService,
     private acl: AccessControlService,
+    private storage: StorageService,
   ) {}
 
   @Query(() => UsersResponse)
@@ -256,6 +424,35 @@ export class UsersResolver {
       res.users = res.users.map((u) => ({ ...u, phone: null }));
     }
     return res;
+  }
+
+  // ===== Supabase Storage: 直传上传会话 =====
+  @Mutation(() => String)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async createAttachmentUploadUrl(
+    @Args('userId') userId: string,
+    @Args('attachmentType') attachmentType: string,
+    @Args('filename') filename: string,
+    @CurrentUser() currentUser: any,
+  ): Promise<string> {
+    // 校验当前用户是否有权限操作该用户（此处MVP按 user:update 简化）
+    const objectPath = this.storage.buildObjectPath({ userId, attachmentType, filename });
+    const { signedUrl } = await this.storage.createSignedUploadUrl(objectPath);
+    // 返回 "objectPath|signedUrl" （MVP：前端用'|'拆分）
+    return `${objectPath}|${signedUrl}`;
+  }
+
+  // ===== Supabase Storage: 下载签名URL =====
+  @Query(() => String)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:read')
+  async createAttachmentDownloadUrl(
+    @Args('objectPath') objectPath: string,
+    @CurrentUser() currentUser: any,
+  ): Promise<string> {
+    const { signedUrl } = await this.storage.createSignedDownloadUrl(objectPath, 600);
+    return signedUrl;
   }
 
   @Query(() => User)
@@ -300,6 +497,110 @@ export class UsersResolver {
     @CurrentUser() currentUser: any,
   ) {
     return this.usersService.update(id, input, currentUser.sub);
+  }
+
+  // ===== EAV 批量更新 =====
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async updateUserFieldValues(
+    @Args('userId') userId: string,
+    @Args({ name: 'entries', type: () => [UpdateUserFieldValueEntryInput] }) entries: UpdateUserFieldValueEntry[],
+    @CurrentUser() currentUser: any,
+  ) {
+    return this.usersService.updateFieldValues(userId, entries, currentUser.sub);
+  }
+
+  // ===== 多明细 Upsert/Delete =====
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async upsertUserEducation(@Args('input') input: UpsertEducationInput, @CurrentUser() currentUser: any) {
+    return this.usersService.upsertEducation(currentUser.sub, input);
+  }
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async deleteUserEducation(@Args('id') id: string, @CurrentUser() currentUser: any) {
+    return this.usersService.deleteEducation(currentUser.sub, id);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async upsertUserWorkExperience(@Args('input') input: UpsertWorkExperienceInput, @CurrentUser() currentUser: any) {
+    return this.usersService.upsertWorkExperience(currentUser.sub, input);
+  }
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async deleteUserWorkExperience(@Args('id') id: string, @CurrentUser() currentUser: any) {
+    return this.usersService.deleteWorkExperience(currentUser.sub, id);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async upsertUserEmergencyContact(@Args('input') input: UpsertEmergencyContactInput, @CurrentUser() currentUser: any) {
+    return this.usersService.upsertEmergencyContact(currentUser.sub, input);
+  }
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async deleteUserEmergencyContact(@Args('id') id: string, @CurrentUser() currentUser: any) {
+    return this.usersService.deleteEmergencyContact(currentUser.sub, id);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async upsertUserFamilyMember(@Args('input') input: UpsertFamilyMemberInput, @CurrentUser() currentUser: any) {
+    return this.usersService.upsertFamilyMember(currentUser.sub, input);
+  }
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async deleteUserFamilyMember(@Args('id') id: string, @CurrentUser() currentUser: any) {
+    return this.usersService.deleteFamilyMember(currentUser.sub, id);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async upsertUserContract(@Args('input') input: UpsertContractInput, @CurrentUser() currentUser: any) {
+    return this.usersService.upsertContract(currentUser.sub, input);
+  }
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async deleteUserContract(@Args('id') id: string, @CurrentUser() currentUser: any) {
+    return this.usersService.deleteContract(currentUser.sub, id);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async upsertUserDocument(@Args('input') input: UpsertDocumentInput, @CurrentUser() currentUser: any) {
+    return this.usersService.upsertDocument(currentUser.sub, input);
+  }
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async deleteUserDocument(@Args('id') id: string, @CurrentUser() currentUser: any) {
+    return this.usersService.deleteDocument(currentUser.sub, id);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async upsertUserBankAccount(@Args('input') input: UpsertBankAccountInput, @CurrentUser() currentUser: any) {
+    return this.usersService.upsertBankAccount(currentUser.sub, input);
+  }
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async deleteUserBankAccount(@Args('id') id: string, @CurrentUser() currentUser: any) {
+    return this.usersService.deleteBankAccount(currentUser.sub, id);
   }
 
   @Mutation(() => User)
@@ -391,5 +692,37 @@ export class UsersResolver {
     };
     const csv = [headers.join(','), ...rows.map((r) => r.map(escape).join(','))].join('\n');
     return csv;
+  }
+
+  // ===== 附件（极敏感） =====
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async createUserAttachment(
+    @Args('input') input: CreateUserAttachmentInput,
+    @CurrentUser() currentUser: any,
+  ) {
+    return this.usersService.createUserAttachment(currentUser.sub, input);
+  }
+
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:update')
+  async deleteUserAttachment(
+    @Args('id') id: string,
+    @CurrentUser() currentUser: any,
+  ) {
+    return this.usersService.deleteUserAttachment(currentUser.sub, id);
+  }
+
+  // ===== 假期余额（HR/超管可见） =====
+  @Query(() => [LeaveBalanceItem])
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:read')
+  async userLeaveBalances(
+    @Args('userId') userId: string,
+    @CurrentUser() currentUser: any,
+  ): Promise<LeaveBalanceItem[]> {
+    return this.usersService.getUserLeaveBalances(userId, currentUser.sub);
   }
 }

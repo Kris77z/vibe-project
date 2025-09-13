@@ -77,6 +77,18 @@ model User {
   // 个体可见性配置（可选）
   visibility   UserVisibility?
   
+  // 人员字段值（EAV）与明细表反向关联
+  userFieldValues     UserFieldValue[]
+  educations          UserEducation[]
+  workExperiences     UserWorkExperience[]
+  familyMembers       UserFamilyMember[]
+  emergencyContacts   UserEmergencyContact[]
+  contracts           UserContract[]
+  documents           UserDocument[]
+  bankAccounts        UserBankAccount[]
+  attachmentRefs      UserAttachmentRef[]
+  leaveTransactions   LeaveTransaction[]
+  
   @@map("users")
 }
 
@@ -233,6 +245,7 @@ model FieldDefinition {
 
   // 关联
   fieldSetItems  FieldSetItem[]
+  fieldValues    UserFieldValue[]
 
   @@map("field_definitions")
 }
@@ -261,6 +274,194 @@ model FieldSetItem {
 
   @@unique([fieldSetId, fieldId])
   @@map("field_set_items")
+}
+
+// ===================================
+// 人员字段值（EAV 单值存储）
+// ===================================
+
+model UserFieldValue {
+  id         String         @id @default(cuid())
+  userId     String
+  fieldId    String
+
+  // 多类型存储，按需要占用其中之一
+  valueString String?
+  valueNumber Float?
+  valueDate   DateTime?
+  valueJson   Json?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  field      FieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fieldId])
+  @@index([userId])
+  @@index([fieldId])
+  @@map("user_field_values")
+}
+
+// ===================================
+// 人员明细信息（多条记录）
+// ===================================
+
+model UserEducation {
+  id          String   @id @default(cuid())
+  userId      String
+  degree      String?   // 学历（大专/本科/硕士/博士）
+  school      String?
+  enrollDate  DateTime?
+  graduateDate DateTime?
+  major       String?
+  studyForm   String?   // 全日制/非全日制
+  schoolingYears Int?
+  degreeName  String?   // 学位
+  awardingCountry String?
+  awardingInstitution String?
+  awardingDate DateTime?
+  languageLevel String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_educations")
+}
+
+model UserWorkExperience {
+  id          String   @id @default(cuid())
+  userId      String
+  company     String?
+  department  String?
+  position    String?
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_work_experiences")
+}
+
+model UserFamilyMember {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  relation     String
+  organization String?
+  contact      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_family_members")
+}
+
+model UserEmergencyContact {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  relation  String?
+  phone     String
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_emergency_contacts")
+}
+
+model UserContract {
+  id          String   @id @default(cuid())
+  userId      String
+  contractNo  String?
+  company     String?
+  contractType String?
+  startDate   DateTime?
+  endDate     DateTime?
+  actualEndDate DateTime?
+  signedTimes Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_contracts")
+}
+
+model UserDocument {
+  id          String   @id @default(cuid())
+  userId      String
+  docType     String   // 身份证/护照/港澳通行证/台胞证
+  docNumber   String
+  validUntil  DateTime?
+  // 到期剩余天数可运行时计算，这里不存
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_documents")
+}
+
+model UserBankAccount {
+  id           String   @id @default(cuid())
+  userId       String
+  accountName  String?   // 开户人姓名
+  bankName     String?
+  bankBranch   String?
+  accountNumber String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_bank_accounts")
+}
+
+model UserAttachmentRef {
+  id           String   @id @default(cuid())
+  userId       String
+  attachmentId String
+  attachmentType AttachmentType   // 身份证/银行卡/学历证书/体检报告/户口本/学生证/性格测试/入职登记表等
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachment   Attachment @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([attachmentId])
+  @@map("user_attachment_refs")
+}
+
+// --- 请假与余额（MVP：事务聚合计算） ---
+
+model LeaveTransaction {
+  id        String    @id @default(cuid())
+  userId    String
+  type      LeaveType
+  amount    Float     // 正数=发放/补贴；负数=消耗
+  reason    String?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@map("leave_transactions")
 }
 
 // 临时访问授权（MVP）
@@ -538,6 +739,9 @@ model Attachment {
   uploaderId String
   uploader   User   @relation("uploadedAttachments", fields: [uploaderId], references: [id])
 
+  // 关联到人员档案的附件引用
+  userAttachmentRefs UserAttachmentRef[]
+
   @@map("attachments")
 }
 
@@ -648,6 +852,36 @@ enum NotificationType {
   ISSUE_UPDATED     // Issue更新
   ISSUE_COMMENTED   // Issue评论
   ISSUE_STATUS_CHANGED // Issue状态变更
+}
+
+// 附件类型（人员档案-极敏感）
+enum AttachmentType {
+  ID_CARD            // 身份证
+  CMB_BANK_CARD      // 招商银行卡
+  HOUSEHOLD_MAIN     // 户口本首页
+  HOUSEHOLD_SELF     // 户口本本人页
+  EDU_DIPLOMA        // 学历证书
+  EDU_DEGREE         // 学位证书
+  RESIGNATION_CERT   // 离职证明
+  MEDICAL_REPORT     // 体检报告
+  ORIGINAL_RESUME    // 原始简历
+  ONBOARD_FORM       // 入职登记表
+  STUDENT_ID         // 学生证
+  PERSONALITY_TEST   // 性格测试
+}
+
+// 假期类型（MVP 固定集合，可后续改表驱动）
+enum LeaveType {
+  ANNUAL             // 年假
+  PERSONAL           // 事假
+  PAID_SICK          // 带薪病假
+  MARRIAGE           // 婚假
+  MATERNITY          // 产假
+  PATERNITY          // 陪产假
+  FUNERAL            // 丧假
+  PRENATAL_CHECK     // 产检假
+  SICK               // 病假(非全薪)
+  OTHER              // 其他
 }
 
 // ===================================

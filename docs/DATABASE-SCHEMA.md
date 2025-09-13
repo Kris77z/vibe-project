@@ -48,6 +48,85 @@ CREATE TABLE users (
 );
 ```
 
+> 可见性与字段分级相关扩展（新增）
+
+#### 1.1 field_definitions - 字段定义
+```sql
+CREATE TABLE field_definitions (
+  id              VARCHAR PRIMARY KEY DEFAULT cuid(),
+  key             VARCHAR UNIQUE NOT NULL,        -- 字段键，如 contact_phone
+  label           VARCHAR NOT NULL,               -- 字段显示名
+  classification  VARCHAR NOT NULL,               -- PUBLIC/INTERNAL/SENSITIVE/HIGHLY_SENSITIVE
+  self_editable   BOOLEAN DEFAULT false,          -- 是否用户可自编辑
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### 1.2 field_sets - 字段集
+```sql
+CREATE TABLE field_sets (
+  id           VARCHAR PRIMARY KEY DEFAULT cuid(),
+  name         VARCHAR UNIQUE NOT NULL,           -- 字段集名称
+  description  VARCHAR,                           -- 说明
+  is_system    BOOLEAN DEFAULT false,
+  created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### 1.3 field_set_items - 字段集项
+```sql
+CREATE TABLE field_set_items (
+  id              VARCHAR PRIMARY KEY DEFAULT cuid(),
+  set_id          VARCHAR NOT NULL,
+  field_key       VARCHAR NOT NULL,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  FOREIGN KEY (set_id) REFERENCES field_sets(id) ON DELETE CASCADE
+);
+```
+
+#### 1.4 temporary_access_grants - 临时字段访问授权
+```sql
+CREATE TABLE temporary_access_grants (
+  id                  VARCHAR PRIMARY KEY DEFAULT cuid(),
+  grantee_user_id     VARCHAR NOT NULL,        -- 被授权用户
+  resource            VARCHAR NOT NULL,        -- 资源，如 'user'
+  field_key           VARCHAR NOT NULL,        -- 授权字段
+  action              VARCHAR NOT NULL,        -- read
+  start_at            TIMESTAMPTZ NOT NULL,
+  end_at              TIMESTAMPTZ NOT NULL,
+  allow_cross_boundary BOOLEAN DEFAULT false,  -- 是否允许跨组织边界
+  scope_department_id VARCHAR,                 -- 限定范围的部门
+  created_at          TIMESTAMPTZ DEFAULT NOW(),
+  FOREIGN KEY (grantee_user_id) REFERENCES users(id),
+  FOREIGN KEY (scope_department_id) REFERENCES departments(id)
+);
+```
+
+#### 1.5 user_visibility - 用户可见性
+```sql
+CREATE TABLE user_visibility (
+  user_id     VARCHAR PRIMARY KEY,             -- 目标用户
+  hidden      BOOLEAN DEFAULT false,           -- 是否被隐藏
+  view_scope  VARCHAR DEFAULT 'COMPANY',       -- 可见范围 COMPANY/DEPARTMENT/SELF
+  updated_at  TIMESTAMPTZ DEFAULT NOW(),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
+#### 1.6 departments 扩展：负责人列表（逻辑上通过外表维护）
+> 采用关联表存储多负责人：
+```sql
+CREATE TABLE department_leaders (
+  id              VARCHAR PRIMARY KEY DEFAULT cuid(),
+  department_id   VARCHAR NOT NULL,
+  leader_user_id  VARCHAR NOT NULL,
+  UNIQUE(department_id, leader_user_id),
+  FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
+  FOREIGN KEY (leader_user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+```
+
 **索引设计**:
 - `UNIQUE INDEX` on `email`
 - `UNIQUE INDEX` on `username`

@@ -260,25 +260,128 @@ async function main() {
   // 5b. 初始化字段分级与字段集（最小集）
   console.log('初始化字段分级与字段集...');
   const fieldDefs = [
+    // 企业内展示（公开）
     { key: 'name', label: '姓名', classification: 'PUBLIC', selfEditable: false },
     { key: 'department', label: '部门', classification: 'PUBLIC', selfEditable: false },
     { key: 'position', label: '职务/岗位', classification: 'PUBLIC', selfEditable: false },
     { key: 'landline', label: '座机', classification: 'PUBLIC', selfEditable: true },
-    { key: 'employee_no', label: '工号', classification: 'INTERNAL', selfEditable: false },
-    { key: 'employment_status', label: '在职状态', classification: 'INTERNAL', selfEditable: false },
-    { key: 'join_date', label: '入职日期', classification: 'INTERNAL', selfEditable: false },
-
     { key: 'contact_work_email', label: '工作邮箱', classification: 'PUBLIC', selfEditable: false },
+
+    // 工作信息（内部）
+    { key: 'employee_no', label: '工号', classification: 'INTERNAL', selfEditable: false },
+    { key: 'employment_status', label: '人员状态', classification: 'INTERNAL', selfEditable: false },
+    { key: 'employee_type', label: '人员类型', classification: 'INTERNAL', selfEditable: false },
+    { key: 'sequence', label: '序列', classification: 'INTERNAL', selfEditable: false },
+    { key: 'reporting_manager', label: '直属上级', classification: 'INTERNAL', selfEditable: false },
+    { key: 'business_unit', label: '事业部', classification: 'INTERNAL', selfEditable: false },
+    { key: 'business_unit_leader', label: '事业部负责人', classification: 'INTERNAL', selfEditable: false },
+    { key: 'tags', label: '标签', classification: 'INTERNAL', selfEditable: true },
+    { key: 'company_join_date', label: '加入公司日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'intern_conversion_date', label: '实习转正日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'join_date', label: '入职日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'probation_months', label: '试用期(月)', classification: 'INTERNAL', selfEditable: false },
+    { key: 'regularization_date', label: '转正日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'first_work_date', label: '首次参加工作日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'seniority_base_date', label: '工龄计算使用日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'seniority_years', label: '工龄', classification: 'INTERNAL', selfEditable: false },
+    { key: 'tenure_years', label: '司龄', classification: 'INTERNAL', selfEditable: false },
+    { key: 'work_location', label: '工作地点', classification: 'INTERNAL', selfEditable: false },
+    { key: 'company_belong', label: '所属公司', classification: 'INTERNAL', selfEditable: false },
+    { key: 'onboarding_location', label: '入职办理地点', classification: 'INTERNAL', selfEditable: false },
+
+    // 假勤（敏感）
+    { key: 'vacation_balance', label: '假期余额', classification: 'SENSITIVE', selfEditable: false },
+
+    // 个人信息（内部）
+    { key: 'english_name', label: '英文名', classification: 'INTERNAL', selfEditable: true },
+    { key: 'gender', label: '性别', classification: 'INTERNAL', selfEditable: true },
     { key: 'contact_phone', label: '手机号码', classification: 'INTERNAL', selfEditable: true },
     { key: 'contact_wechat', label: '微信', classification: 'INTERNAL', selfEditable: true },
     { key: 'contact_qq', label: 'QQ', classification: 'INTERNAL', selfEditable: true },
     { key: 'contact_personal_email', label: '个人邮箱', classification: 'INTERNAL', selfEditable: true },
+    { key: 'birth_date', label: '出生日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'age', label: '年龄', classification: 'INTERNAL', selfEditable: false },
+    { key: 'height_cm', label: '身高(cm)', classification: 'INTERNAL', selfEditable: true },
+    { key: 'weight_kg', label: '体重(kg)', classification: 'INTERNAL', selfEditable: true },
+    { key: 'blood_type', label: '血型', classification: 'INTERNAL', selfEditable: true },
+    { key: 'medical_history', label: '以往病史', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'nationality', label: '国籍', classification: 'INTERNAL', selfEditable: true },
+    { key: 'ethnicity', label: '民族', classification: 'INTERNAL', selfEditable: true },
+    { key: 'political_status', label: '政治面貌', classification: 'INTERNAL', selfEditable: true },
+    { key: 'native_place', label: '籍贯(省市)', classification: 'INTERNAL', selfEditable: true },
+    { key: 'household_type', label: '户籍类型', classification: 'INTERNAL', selfEditable: true },
+    { key: 'household_province', label: '户籍-省', classification: 'INTERNAL', selfEditable: true },
+    { key: 'household_city', label: '户籍-市', classification: 'INTERNAL', selfEditable: true },
+    { key: 'household_register', label: '户籍(户口所在地)', classification: 'INTERNAL', selfEditable: true },
+    { key: 'id_card_address', label: '身份证地址', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'current_address', label: '现居住地址', classification: 'SENSITIVE', selfEditable: true },
 
-    { key: 'vacation_balance', label: '假期余额', classification: 'SENSITIVE', selfEditable: false },
-
+    // 证件（极敏感）
+    { key: 'id_type', label: '证件类型', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
     { key: 'id_number', label: '证件号码', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'id_valid_until', label: '有效期至', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'id_days_remaining', label: '到期剩余', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+
+    // 银行（极敏感）
+    { key: 'bank_account_name', label: '开户人姓名', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'bank_branch', label: '开户支行', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
     { key: 'bank_card_number', label: '银行卡号', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+
+    // 教育经历（内部）
+    { key: 'education_degree', label: '学历', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_school', label: '学校', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_enroll_date', label: '入学日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_graduation_date', label: '毕业日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_major', label: '所学专业', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_study_form', label: '学习形式', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_schooling_years', label: '学制(年)', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_degree_name', label: '学位', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_awarding_country', label: '学位授予国家', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_awarding_institution', label: '学位授予单位', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_awarding_date', label: '学位授予日期', classification: 'INTERNAL', selfEditable: false },
+    { key: 'education_language_level', label: '外语级别', classification: 'INTERNAL', selfEditable: false },
+
+    // 工作经历（内部）
+    { key: 'workexp_company', label: '公司', classification: 'INTERNAL', selfEditable: false },
+    { key: 'workexp_department', label: '部门', classification: 'INTERNAL', selfEditable: false },
+    { key: 'workexp_position', label: '职务', classification: 'INTERNAL', selfEditable: false },
+    { key: 'workexp_start_date', label: '开始时间', classification: 'INTERNAL', selfEditable: false },
+    { key: 'workexp_end_date', label: '结束时间', classification: 'INTERNAL', selfEditable: false },
+
+    // 紧急联系人（敏感）
+    { key: 'emergency_name', label: '紧急联系人姓名', classification: 'SENSITIVE', selfEditable: true },
+    { key: 'emergency_relation', label: '紧急联系人关系', classification: 'SENSITIVE', selfEditable: true },
+    { key: 'emergency_phone', label: '紧急联系电话', classification: 'SENSITIVE', selfEditable: true },
+    { key: 'emergency_address', label: '紧急联系人住址', classification: 'SENSITIVE', selfEditable: true },
+
+    // 家庭成员（敏感）
+    { key: 'family_name', label: '家庭成员姓名', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'family_relation', label: '家庭成员关系', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'family_organization', label: '家庭成员工作单位', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'family_contact', label: '家庭成员联系方式', classification: 'SENSITIVE', selfEditable: false },
+
+    // 合同信息（敏感）
+    { key: 'contract_no', label: '合同编号', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'contract_company', label: '合同公司', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'contract_type', label: '合同类型', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'contract_start_date', label: '合同开始时间', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'contract_end_date', label: '合同结束时间', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'contract_actual_end_date', label: '合同实际结束时间', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'contract_signed_times', label: '合同签订次数', classification: 'SENSITIVE', selfEditable: false },
+
+    // 资料附件（极敏感）
     { key: 'document_id_card', label: '身份证附件', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_bank_card', label: '银行卡附件', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_household_book_index', label: '户口本首页', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_household_book_self', label: '户口本本人页', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_education_certificate', label: '学历证书', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_degree_certificate', label: '学位证书', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_resignation_proof', label: '离职证明', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_medical_report', label: '体检报告', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_resume', label: '原始简历', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_onboarding_form', label: '入职登记表', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_student_card', label: '学生证', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+    { key: 'document_personality_test', label: '性格测试', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
   ];
 
   for (const fd of fieldDefs) {
@@ -319,6 +422,51 @@ async function main() {
     update: {},
     create: { name: '假勤信息集（内部）', description: '假期余额', isSystem: true },
   });
+  const fieldSetPersonal = await prisma.fieldSet.upsert({
+    where: { name: '个人信息集' },
+    update: {},
+    create: { name: '个人信息集', description: '个人基础信息', isSystem: true },
+  });
+  const fieldSetIdDoc = await prisma.fieldSet.upsert({
+    where: { name: '证件信息集（极敏感）' },
+    update: {},
+    create: { name: '证件信息集（极敏感）', description: '证件类型/号码/有效期等', isSystem: true },
+  });
+  const fieldSetBank = await prisma.fieldSet.upsert({
+    where: { name: '银行卡信息集（极敏感）' },
+    update: {},
+    create: { name: '银行卡信息集（极敏感）', description: '开户人/支行/卡号', isSystem: true },
+  });
+  const fieldSetEducation = await prisma.fieldSet.upsert({
+    where: { name: '教育经历集' },
+    update: {},
+    create: { name: '教育经历集', description: '学历/学校/入学/毕业/专业等', isSystem: true },
+  });
+  const fieldSetWorkExp = await prisma.fieldSet.upsert({
+    where: { name: '工作经历集' },
+    update: {},
+    create: { name: '工作经历集', description: '外部公司/部门/职务/起止', isSystem: true },
+  });
+  const fieldSetEmergency = await prisma.fieldSet.upsert({
+    where: { name: '紧急联系人集（敏感）' },
+    update: {},
+    create: { name: '紧急联系人集（敏感）', description: '姓名/关系/联系电话/住址', isSystem: true },
+  });
+  const fieldSetFamily = await prisma.fieldSet.upsert({
+    where: { name: '家庭成员集（敏感）' },
+    update: {},
+    create: { name: '家庭成员集（敏感）', description: '姓名/关系/单位/联系方式', isSystem: true },
+  });
+  const fieldSetContract = await prisma.fieldSet.upsert({
+    where: { name: '合同信息集（敏感）' },
+    update: {},
+    create: { name: '合同信息集（敏感）', description: '编号/公司/类型/起止/次数', isSystem: true },
+  });
+  const fieldSetAttachments = await prisma.fieldSet.upsert({
+    where: { name: '资料附件集（极敏感）' },
+    update: {},
+    create: { name: '资料附件集（极敏感）', description: '身份证/银行卡/学历/体检等', isSystem: true },
+  });
 
   // 组装字段集项（先清空再写入，使用upsert覆盖）
   const connectByKey = async (setId: string, keys: string[]) => {
@@ -334,9 +482,34 @@ async function main() {
   };
 
   await connectByKey(fieldSetEnterprise.id, ['name', 'department', 'position', 'contact_work_email', 'landline']);
-  await connectByKey(fieldSetOrg.id, ['department', 'position']);
+  await connectByKey(fieldSetOrg.id, [
+    'employee_no','employment_status','employee_type','sequence','reporting_manager','business_unit','business_unit_leader',
+    'department','position','tags','company_join_date','intern_conversion_date','join_date','probation_months',
+    'regularization_date','first_work_date','seniority_base_date','seniority_years','tenure_years','work_location','company_belong','onboarding_location'
+  ]);
   await connectByKey(fieldSetContact.id, ['contact_phone', 'contact_wechat', 'contact_qq', 'contact_personal_email']);
   await connectByKey(fieldSetLeave.id, ['vacation_balance']);
+  await connectByKey(fieldSetPersonal.id, [
+    'english_name','gender','birth_date','age','height_cm','weight_kg','blood_type','medical_history',
+    'nationality','ethnicity','political_status','native_place','household_type','household_province','household_city','household_register',
+    'id_card_address','current_address'
+  ]);
+  await connectByKey(fieldSetIdDoc.id, ['id_type','id_number','id_valid_until','id_days_remaining']);
+  await connectByKey(fieldSetBank.id, ['bank_account_name','bank_branch','bank_card_number']);
+  await connectByKey(fieldSetEducation.id, [
+    'education_degree','education_school','education_enroll_date','education_graduation_date','education_major','education_study_form',
+    'education_schooling_years','education_degree_name','education_awarding_country','education_awarding_institution','education_awarding_date','education_language_level'
+  ]);
+  await connectByKey(fieldSetWorkExp.id, ['workexp_company','workexp_department','workexp_position','workexp_start_date','workexp_end_date']);
+  await connectByKey(fieldSetEmergency.id, ['emergency_name','emergency_relation','emergency_phone','emergency_address']);
+  await connectByKey(fieldSetFamily.id, ['family_name','family_relation','family_organization','family_contact']);
+  await connectByKey(fieldSetContract.id, [
+    'contract_no','contract_company','contract_type','contract_start_date','contract_end_date','contract_actual_end_date','contract_signed_times'
+  ]);
+  await connectByKey(fieldSetAttachments.id, [
+    'document_id_card','document_bank_card','document_household_book_index','document_household_book_self','document_education_certificate',
+    'document_degree_certificate','document_resignation_proof','document_medical_report','document_resume','document_onboarding_form','document_student_card','document_personality_test'
+  ]);
 
   // 6. 创建超级管理员用户
   console.log('创建超级管理员用户...');

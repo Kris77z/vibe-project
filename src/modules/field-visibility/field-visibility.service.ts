@@ -52,6 +52,27 @@ export class FieldVisibilityService {
       return fields.map((f) => f.key);
     }
 
+    // 预先缓存常用判定，避免在循环内重复 DB 查询
+    const isSelf = targetUserId && targetUserId === userId;
+    const hasContactRead = await this.acl.hasPermission(userId, 'contact', 'read');
+    const hasSensitiveRead = await this.acl.hasPermission(userId, 'user_sensitive', 'read');
+    const hasHighlySensitiveRead = await this.acl.hasPermission(userId, 'user_highly_sensitive', 'read');
+    const isLeader = targetUserId ? await this.acl.isLeaderForUser(userId, targetUserId) : false;
+
+    // 预取当前用户在该资源上的所有有效临时授权（read），减少逐字段的 DB 查询
+    const now = new Date();
+    const activeGrants = await this.prisma.temporaryAccessGrant.findMany({
+      where: {
+        granteeId: userId,
+        resource,
+        action: 'read',
+        startAt: { lte: now },
+        endAt: { gte: now },
+      },
+      select: { fieldKey: true, scopeDepartmentId: true },
+    });
+    const grantedFieldKeys = new Set(activeGrants.map(g => g.fieldKey));
+
     const result: string[] = [];
     for (const f of fields) {
       // PUBLIC 直接可见
@@ -62,14 +83,11 @@ export class FieldVisibilityService {
 
       // INTERNAL -> 需要 contact:read 或本人视图，或临时授权；若 viewer 为部门链路负责人，则放开主管白名单
       if (f.classification === 'INTERNAL') {
-        const isSelf = targetUserId && targetUserId === userId;
         if (isSelf) {
           result.push(f.key);
           continue;
         }
-        const ok = await this.acl.hasPermission(userId, 'contact', 'read');
-        if (!ok) {
-          const isLeader = targetUserId ? await this.acl.isLeaderForUser(userId, targetUserId) : false;
+        if (!hasContactRead) {
           const managerWhitelist = new Set([
             'name', 'department', 'position', 'employee_no', 'employment_status', 'join_date', 'contact_work_email',
           ]);
@@ -77,41 +95,46 @@ export class FieldVisibilityService {
             result.push(f.key);
             continue;
           }
-          const granted = await this.acl.hasTemporaryGrant({ granteeId: userId, resource, fieldKey: f.key, action: 'read', targetUserId });
-          if (granted) {
-            result.push(f.key);
-            continue;
+          // 仅在存在该字段的授权时，才进一步校验授权范围，避免每个字段都查库
+          if (grantedFieldKeys.has(f.key)) {
+            const granted = await this.acl.hasTemporaryGrant({ granteeId: userId, resource, fieldKey: f.key, action: 'read', targetUserId });
+            if (granted) {
+              result.push(f.key);
+              continue;
+            }
           }
         }
-        if (ok) result.push(f.key);
+        if (hasContactRead) result.push(f.key);
         continue;
       }
 
       // SENSITIVE -> 需要 user_sensitive:read 或临时授权（可带部门范围）
       if (f.classification === 'SENSITIVE') {
-        const ok = await this.acl.hasPermission(userId, 'user_sensitive', 'read');
-        if (!ok) {
-          const granted = await this.acl.hasTemporaryGrant({ granteeId: userId, resource, fieldKey: f.key, action: 'read', targetUserId });
-          if (granted) {
-            result.push(f.key);
-            continue;
+        if (!hasSensitiveRead) {
+          if (grantedFieldKeys.has(f.key)) {
+            const granted = await this.acl.hasTemporaryGrant({ granteeId: userId, resource, fieldKey: f.key, action: 'read', targetUserId });
+            if (granted) {
+              result.push(f.key);
+              continue;
+            }
           }
         }
-        if (ok) result.push(f.key);
+        if (hasSensitiveRead) result.push(f.key);
         continue;
       }
 
       // HIGHLY_SENSITIVE -> 需要 user_highly_sensitive:read 或临时授权（可带部门范围）
       if (f.classification === 'HIGHLY_SENSITIVE') {
-        const ok = await this.acl.hasPermission(userId, 'user_highly_sensitive', 'read');
-        if (!ok) {
-          const granted = await this.acl.hasTemporaryGrant({ granteeId: userId, resource, fieldKey: f.key, action: 'read', targetUserId });
-          if (granted) {
-            result.push(f.key);
-            continue;
+        if (!hasHighlySensitiveRead) {
+          if (grantedFieldKeys.has(f.key)) {
+            const granted = await this.acl.hasTemporaryGrant({ granteeId: userId, resource, fieldKey: f.key, action: 'read', targetUserId });
+            if (granted) {
+              result.push(f.key);
+              continue;
+            }
           }
         }
-        if (ok) result.push(f.key);
+        if (hasHighlySensitiveRead) result.push(f.key);
         continue;
       }
     }
