@@ -4,25 +4,28 @@
 
 - **数据库类型**: PostgreSQL (Supabase托管)
 - **ORM工具**: Prisma
-- **表总数**: 24张核心业务表
-- **字段总数**: 150+ 个业务字段
-- **关系总数**: 40+ 个表间关联关系
+- **表总数**: 40张核心业务表（与 Prisma schema 同步）
+- **字段总数**: 200+ 个业务字段
+- **关系总数**: 80+ 个表间关联关系
 
 ## 📋 表分类统计
 
 | 分类 | 表数量 | 主要功能 |
 |------|---------|----------|
-| 用户权限管理 | 8张表 | 用户认证、角色权限、组织架构 |
-| 项目任务管理 | 7张表 | 项目管理、任务执行、协作评论 |
-| Issue产品管理 | 5张表 | 产品需求、PRD文档、评审流程 |
-| 工作流管理 | 3张表 | 自定义工作流、状态转换 |
-| 通知系统 | 1张表 | 消息通知、系统提醒 |
+| 用户与权限管理 | 9张表 | 用户、公司、部门、团队、角色权限 |
+| 字段定义与可见性 | 6张表 | 字段分级、字段集、字段值（EAV）、个体可见性、临时授权 |
+| 人员档案明细 | 8张表 | 教育、工作、家庭、紧急联系人、合同、证件、银行卡、档案附件引用 |
+| 项目任务管理 | 7张表 | 项目、成员、任务、依赖、评论、附件、工时 |
+| Issue产品管理 | 5张表 | Issue、评论、标签、PRD、PRD评审 |
+| 工作流管理 | 3张表 | 工作流、状态、状态转换 |
+| 通知系统 | 1张表 | 站内通知 |
+| 请假与余额 | 1张表 | 假期事务与余额聚合（事务表） |
 
 ## 🏗️ 详细表结构
 
-### 一、用户权限管理模块 (8张表)
+### 一、用户与权限管理（与 schema.prisma 对齐）
 
-#### 1. users - 用户表
+#### 1. users - 用户表（User）
 ```sql
 CREATE TABLE users (
   id              VARCHAR PRIMARY KEY DEFAULT cuid(),
@@ -36,13 +39,14 @@ CREATE TABLE users (
   created_at      TIMESTAMPTZ DEFAULT NOW(),
   updated_at      TIMESTAMPTZ DEFAULT NOW(),
   
-  -- 组织关系
+  -- 组织关系与公司
   department_id   VARCHAR,                      -- 所属部门ID
-  
-  -- GitLab集成字段
+  company_id      VARCHAR,                      -- 所属公司（硬边界）
+
+  -- GitLab集成字段（可选）
   gitlab_user_id  INTEGER,                      -- GitLab用户ID
   gitlab_username VARCHAR,                      -- GitLab用户名
-  gitlab_token    VARCHAR,                      -- GitLab访问令牌
+  gitlab_token    VARCHAR,                      -- GitLab访问令牌（加密）
   
   FOREIGN KEY (department_id) REFERENCES departments(id)
 );
@@ -114,18 +118,8 @@ CREATE TABLE user_visibility (
 );
 ```
 
-#### 1.6 departments 扩展：负责人列表（逻辑上通过外表维护）
-> 采用关联表存储多负责人：
-```sql
-CREATE TABLE department_leaders (
-  id              VARCHAR PRIMARY KEY DEFAULT cuid(),
-  department_id   VARCHAR NOT NULL,
-  leader_user_id  VARCHAR NOT NULL,
-  UNIQUE(department_id, leader_user_id),
-  FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
-  FOREIGN KEY (leader_user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-```
+#### 1.6 departments 扩展：负责人列表
+> 当前实现采用数组字段存储负责人ID列表（schema 中为 `leaderUserIds String[]`）。
 
 **索引设计**:
 - `UNIQUE INDEX` on `email`
@@ -260,7 +254,7 @@ CREATE TABLE role_permissions (
 );
 ```
 
-### 二、项目任务管理模块 (7张表)
+### 二、项目任务管理（与 schema.prisma 对齐）
 
 #### 9. projects - 项目表
 ```sql
@@ -269,8 +263,8 @@ CREATE TABLE projects (
   name        VARCHAR NOT NULL,                 -- 项目名称
   key         VARCHAR UNIQUE NOT NULL,          -- 项目唯一标识 (如 PROJ001)
   description VARCHAR,                          -- 项目描述
-  status      project_status DEFAULT 'PLANNING', -- 项目状态
-  priority    priority DEFAULT 'MEDIUM',        -- 项目优先级
+  status      project_status DEFAULT 'PLANNING', -- 项目状态（PLANNING/ACTIVE/ON_HOLD/COMPLETED/CANCELLED）
+  priority    priority DEFAULT 'MEDIUM',        -- 项目优先级（LOW/MEDIUM/HIGH/URGENT）
   start_date  TIMESTAMPTZ,                      -- 开始时间
   end_date    TIMESTAMPTZ,                      -- 结束时间
   created_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -322,8 +316,8 @@ CREATE TABLE tasks (
   id              VARCHAR PRIMARY KEY DEFAULT cuid(),
   title           VARCHAR NOT NULL,             -- 任务标题
   description     VARCHAR,                      -- 任务描述
-  status          task_status DEFAULT 'TODO',   -- 任务状态
-  priority        priority DEFAULT 'MEDIUM',    -- 任务优先级
+  status          task_status DEFAULT 'TODO',   -- 任务状态（TODO/IN_PROGRESS/IN_REVIEW/DONE/CANCELLED）
+  priority        priority DEFAULT 'MEDIUM',    -- 任务优先级（LOW/MEDIUM/HIGH/URGENT）
   start_date      TIMESTAMPTZ,                  -- 开始时间
   due_date        TIMESTAMPTZ,                  -- 截止时间
   estimated_hours DECIMAL,                      -- 预估工时
@@ -441,7 +435,7 @@ CREATE TABLE time_logs (
 );
 ```
 
-### 三、Issue产品管理模块 (5张表)
+### 三、Issue产品管理（与 schema.prisma 对齐）
 
 #### 16. issues - Issue表 (产品建议)
 ```sql
@@ -477,7 +471,7 @@ CREATE TABLE issues (
 );
 ```
 
-**Issue状态流转**:
+**Issue状态流转（IssueStatus）**:
 ```
 OPEN → IN_DISCUSSION → APPROVED → IN_PRD → 
 IN_DEVELOPMENT → IN_TESTING → IN_ACCEPTANCE → COMPLETED
@@ -485,13 +479,13 @@ IN_DEVELOPMENT → IN_TESTING → IN_ACCEPTANCE → COMPLETED
             REJECTED/CANCELLED
 ```
 
-**输入源类型**:
+**输入源类型（InputSource）**:
 - `USER_FEEDBACK`: 用户反馈
 - `INTERNAL`: 内部反馈
 - `DATA_ANALYSIS`: 数据分析
 - `STRATEGY`: 战略需求
 
-**Issue类型**:
+**Issue类型（IssueType）**:
 - `FEATURE`: 新功能
 - `ENHANCEMENT`: 功能优化
 - `BUG_FIX`: 问题修复
@@ -562,7 +556,7 @@ CREATE TABLE prds (
 );
 ```
 
-**PRD状态**:
+**PRD状态（PRDStatus）**:
 - `DRAFT`: 草稿
 - `REVIEW`: 评审中
 - `APPROVED`: 已批准
@@ -585,7 +579,7 @@ CREATE TABLE prd_reviews (
 );
 ```
 
-**评审状态**:
+**评审状态（ReviewStatus）**:
 - `PENDING`: 待评审
 - `APPROVED`: 通过
 - `REJECTED`: 拒绝
@@ -651,7 +645,39 @@ CREATE TABLE workflow_transitions (
 );
 ```
 
-### 五、通知系统模块 (1张表)
+### 五、人员档案（字段定义、EAV 与明细）
+
+#### 字段分级（FieldClassification）
+```
+PUBLIC / INTERNAL / SENSITIVE / HIGHLY_SENSITIVE
+```
+
+#### 字段定义（field_definitions）
+- 维护字段 key/label/分级/selfEditable/description
+- 与字段集（field_sets/field_set_items）形成多对多归集
+
+#### 字段值（user_field_values, EAV 单值）
+- 支持 `valueString/valueNumber/valueDate/valueJson` 四类之一
+- 以 `(userId, fieldId)` 唯一，适合稀疏字段
+
+#### 人员明细表（多条记录）
+- `user_educations`: 学历（入学/毕业时间、专业、学位、授予信息等）
+- `user_work_experiences`: 工作经历（公司、部门、职位、起止时间）
+- `user_family_members`: 家庭成员（姓名、关系、单位、联系方式）
+- `user_emergency_contacts`: 紧急联系人（姓名、关系、电话、地址）
+- `user_contracts`: 合同（编号、公司、类型、起止/实际结束、签订次数）
+- `user_documents`: 证件（类型、号码、有效期）
+- `user_bank_accounts`: 银行账户（开户人、银行/支行、账号）
+- `user_attachment_refs`: 档案附件引用（指向 `attachments`，含 `AttachmentType` 与备注）
+
+#### 个体可见性与临时授权
+- `user_visibility`: `hidden` + `viewScope(ALL/SELF_ONLY/DEPT_ONLY)`
+- `temporary_access_grants`: 对 `resource/fieldKey/action` 的期限授权，可限定部门边界
+
+#### 请假事务
+- `leave_transactions`: `type(LeaveType)` + `amount(±)` 事务聚合余额
+
+### 六、通知系统模块 (1张表)
 
 #### 24. notifications - 通知表
 ```sql
