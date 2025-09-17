@@ -1,5 +1,5 @@
-# 生产环境 Dockerfile
-FROM node:18-alpine AS base
+# 生产环境 Dockerfile（改用 Debian slim，避免 Alpine 上 Prisma OpenSSL 兼容问题）
+FROM node:18-bullseye-slim AS base
 
 # 安装依赖阶段
 FROM base AS deps
@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# 安装依赖
+# 安装依赖（生产依赖）
 RUN npm ci --only=production && npm cache clean --force
 
 # 构建阶段
@@ -36,9 +36,14 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
+# 安装运行期所需工具与库（curl 用于健康检查；openssl 提供 libssl）
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 # 创建非 root 用户
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nestjs
+RUN addgroup --system --gid 1001 nodejs || true
+RUN adduser --system --uid 1001 nestjs || true
 
 # 复制生产依赖
 COPY --from=deps --chown=nestjs:nodejs /app/node_modules ./node_modules
@@ -65,7 +70,7 @@ ENV PORT=3000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
+  CMD curl -fsS http://localhost:3000/api/health || exit 1
 
 # 启动应用
 CMD ["node", "dist/main"]
