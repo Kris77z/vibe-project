@@ -29,7 +29,7 @@ COPY . .
 # 生成 Prisma 客户端
 RUN npm run db:generate
 
-# 构建应用
+# 构建应用（使用 tsconfig.build.json 生成 dist/main.js）
 RUN npm run build
 
 # 运行阶段

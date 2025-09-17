@@ -21,11 +21,13 @@ async function bootstrap() {
     transform: true,
   }));
   
-  // 启用CORS
+  // 启用CORS（支持通过 CORS_ORIGIN 配置多个来源，逗号分隔）
+  const corsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()).filter(Boolean)
+    : (process.env.NODE_ENV === 'production' ? [] : true);
+
   app.enableCors({
-    origin: process.env.NODE_ENV === 'production' 
-      ? ['https://your-frontend-domain.com'] 
-      : true,
+    origin: corsOrigins as any,
     credentials: true,
   });
   
