@@ -42,6 +42,7 @@ import { FieldVisibilityModule } from './modules/field-visibility/field-visibili
       driver: ApolloDriver,
       // 生产环境使用内存生成，避免写入 schema.gql 导致的权限问题；开发仍写入文件便于调试
       autoSchemaFile: process.env.NODE_ENV === 'production' ? true : 'schema.gql',
+      path: '/api/graphql',
       sortSchema: true,
       playground: process.env.NODE_ENV !== 'production',
       introspection: true,
