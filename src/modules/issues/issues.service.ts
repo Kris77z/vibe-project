@@ -19,7 +19,6 @@ export class IssuesService {
         creator: true,
         assignee: true,
         project: true,
-        tags: true,
         comments: {
           include: {
             author: true,
@@ -96,7 +95,6 @@ export class IssuesService {
           creator: true,
           assignee: true,
           project: true,
-          tags: true,
           comments: {
             include: {
               author: true,
@@ -147,7 +145,6 @@ export class IssuesService {
         creator: true,
         assignee: true,
         project: true,
-        tags: true,
         comments: {
           include: {
             author: true,
@@ -215,7 +212,6 @@ export class IssuesService {
         creator: true,
         assignee: true,
         project: true,
-        tags: true,
         comments: {
           include: {
             author: true,
@@ -291,7 +287,6 @@ export class IssuesService {
         creator: true,
         assignee: true,
         project: true,
-        tags: true,
         comments: {
           include: {
             author: true,

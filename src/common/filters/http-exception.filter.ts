@@ -10,6 +10,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let message = 'Internal server error';
     let code = 'INTERNAL_ERROR';
 
+    // 添加详细的错误日志
+    console.error('Exception caught:', {
+      name: exception?.constructor?.name,
+      message: (exception as any)?.message,
+      stack: (exception as any)?.stack,
+      status: (exception as any)?.status,
+    });
+
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const response = exception.getResponse();
@@ -37,9 +45,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
         case HttpStatus.CONFLICT:
           code = 'CONFLICT';
           break;
+        case 413: // Payload Too Large
+          code = 'PAYLOAD_TOO_LARGE';
+          message = '请求数据过大，请选择较小的图片文件';
+          break;
         default:
           code = 'INTERNAL_ERROR';
       }
+    } else if ((exception as any)?.name === 'PayloadTooLargeError') {
+      // 处理body-parser的PayloadTooLargeError
+      status = 413;
+      code = 'PAYLOAD_TOO_LARGE';
+      message = '请求数据过大，请选择较小的图片文件';
     }
 
     // 对于GraphQL，抛出带有扩展信息的错误

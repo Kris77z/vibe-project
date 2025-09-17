@@ -158,6 +158,21 @@ export class AccessControlService {
   }
 
   /**
+   * 设置用户角色（覆盖式）：由超级管理员或具备配置权限的管理员调用
+   */
+  async setUserRoles(params: { userId: string; roleNames: string[] }): Promise<void> {
+    const { userId, roleNames } = params;
+    const roles = await this.prisma.role.findMany({ where: { name: { in: roleNames } } });
+    // 先清空原有关联
+    await this.prisma.userRole.deleteMany({ where: { userId } });
+    if (roles.length === 0) return;
+    await this.prisma.userRole.createMany({
+      data: roles.map((r) => ({ userId, roleId: r.id })),
+      skipDuplicates: true,
+    });
+  }
+
+  /**
    * canAccess（MVP）：仅基于 RBAC 判断 resource/action
    * 预留 targetId/fieldKey 以便后续扩展组织边界与字段级策略
    */

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { User, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -7,7 +7,7 @@ import { StorageService } from '../storage/storage.service';
 
 export interface CreateUserInput {
   email: string;
-  username: string;
+  username?: string;
   name: string;
   password: string;
   departmentId?: string;
@@ -301,10 +301,13 @@ export class UsersService {
   }
 
   async updateFieldValues(targetUserId: string, entries: UpdateUserFieldValueEntry[], currentUserId: string) {
-    // 权限：需要 user:update
-    const canUpdate = await this.acl.hasPermission(currentUserId, 'user', 'update');
-    if (!canUpdate) {
-      throw new ForbiddenException('无权更新人员字段');
+    // 权限：本人可改 selfEditable 字段；他人需 user:update
+    const isSelf = targetUserId === currentUserId;
+    if (!isSelf) {
+      const canUpdate = await this.acl.hasPermission(currentUserId, 'user', 'update');
+      if (!canUpdate) {
+        throw new ForbiddenException('无权更新人员字段');
+      }
     }
 
     const fieldKeys = entries.map(e => e.fieldKey);
@@ -314,6 +317,10 @@ export class UsersService {
     for (const entry of entries) {
       const def = defMap.get(entry.fieldKey);
       if (!def) continue; // 忽略未定义字段
+      if (isSelf && !def.selfEditable) {
+        // 本人仅可编辑 selfEditable 字段
+        continue;
+      }
 
       const data: any = { valueString: null, valueNumber: null, valueDate: null, valueJson: null };
       if (entry.valueString !== undefined) data.valueString = entry.valueString;
@@ -500,7 +507,7 @@ export class UsersService {
       where: {
         OR: [
           { email },
-          { username },
+          ...(username ? [{ username }] : []),
         ],
       },
     });
@@ -509,7 +516,7 @@ export class UsersService {
       if (existingUser.email === email) {
         throw new ConflictException('邮箱已被注册');
       }
-      if (existingUser.username === username) {
+      if (username && existingUser.username === username) {
         throw new ConflictException('用户名已被占用');
       }
     }
@@ -541,7 +548,7 @@ export class UsersService {
     const user = await this.prisma.user.create({
       data: {
         email,
-        username,
+        username: username || email.split('@')[0],
         password: hashedPassword,
         ...userData,
       },
@@ -604,6 +611,60 @@ export class UsersService {
     });
 
     return this.findOne(updatedUser.id);
+  }
+
+  async updateSelf(userId: string, input: UpdateUserInput) {
+    const allowed: UpdateUserInput = {
+      name: input.name,
+      phone: input.phone,
+      avatar: input.avatar,
+    };
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: allowed,
+      include: { department: true },
+    });
+    return this.findOne(updated.id);
+  }
+
+  async updatePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // 验证当前密码
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException('当前密码不正确');
+    }
+
+    // 规则：至少6位，包含大小写和特殊字符
+    const hasMinLength = newPassword.length >= 6;
+    const hasLower = /[a-z]/.test(newPassword);
+    const hasUpper = /[A-Z]/.test(newPassword);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+    if (!(hasMinLength && hasLower && hasUpper && hasSpecial)) {
+      throw new BadRequestException('新密码需至少6位，且包含大小写字母和特殊字符');
+    }
+
+    // 检查新密码不能与当前密码相同
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException('新密码不能与当前密码相同');
+    }
+
+    // 加密新密码
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // 更新密码
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedNewPassword },
+    });
   }
 
   async updateRoles(updateRolesInput: UpdateUserRolesInput, currentUserId: string) {
@@ -784,6 +845,16 @@ export class UsersService {
       thisMonthWorkHours: thisMonthWorkHours._sum.hours || 0,
       completionRate: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
     };
+  }
+
+  // ===== 角色管理 =====
+  async getAllRoles() {
+    return this.prisma.role.findMany({
+      orderBy: [
+        { isSystem: 'desc' }, // 系统角色优先
+        { name: 'asc' }
+      ]
+    });
   }
 }
 

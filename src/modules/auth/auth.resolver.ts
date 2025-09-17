@@ -48,7 +48,6 @@ class LoginInputType {
 
   @Field()
   @IsNotEmpty()
-  @MinLength(6)
   password: string;
 }
 

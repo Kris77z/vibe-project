@@ -87,18 +87,18 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('用户不存在');
+      throw new UnauthorizedException('邮箱地址不存在，请检查邮箱是否正确');
     }
 
     if (!user.isActive) {
-      throw new UnauthorizedException('账户已被禁用');
+      throw new UnauthorizedException('账户已被禁用，请联系管理员');
     }
 
     // 验证密码
     const isValidPassword = await bcrypt.compare(password, user.password);
 
     if (!isValidPassword) {
-      throw new UnauthorizedException('密码错误');
+      throw new UnauthorizedException('密码错误，请重新输入正确的密码');
     }
 
     // 提取角色和权限

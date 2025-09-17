@@ -1,10 +1,26 @@
-import { Resolver, Query, Args, Mutation } from '@nestjs/graphql';
+import { Resolver, Query, Args, Mutation, ObjectType, Field } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { FieldVisibilityService } from './field-visibility.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
+
+// === 字段定义 GraphQL 类型（返回 key/label/classification/selfEditable） ===
+@ObjectType()
+export class FieldDefinitionItem {
+  @Field(() => String)
+  key!: string;
+
+  @Field(() => String)
+  label!: string;
+
+  @Field(() => String)
+  classification!: 'PUBLIC' | 'INTERNAL' | 'SENSITIVE' | 'HIGHLY_SENSITIVE';
+
+  @Field(() => Boolean, { nullable: true })
+  selfEditable?: boolean;
+}
 
 @Resolver()
 export class FieldVisibilityResolver {
@@ -21,11 +37,13 @@ export class FieldVisibilityResolver {
     return this.service.getVisibleFieldKeys(userId, resource, targetUserId);
   }
 
-  @Query(() => [String], { name: 'fieldDefinitions' })
-  async fieldDefinitions(): Promise<string[]> {
-    // 返回 key 列表（MVP 简化），后续可换成对象类型
-    const defs = await (this.service as any).prisma.fieldDefinition.findMany({ select: { key: true } });
-    return defs.map((d: any) => d.key);
+  @Query(() => [FieldDefinitionItem], { name: 'fieldDefinitions' })
+  async fieldDefinitions(): Promise<Array<{ key: string; label: string; classification: string; selfEditable: boolean }>> {
+    const defs = await (this.service as any).prisma.fieldDefinition.findMany({
+      select: { key: true, label: true, classification: true, selfEditable: true },
+      orderBy: { key: 'asc' },
+    });
+    return defs;
   }
 
   @Query(() => [String], { name: 'fieldSets' })

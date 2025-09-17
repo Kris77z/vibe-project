@@ -773,8 +773,9 @@ async function main() {
     create: {
       email: 'test@company.com',
       username: 'tester',
-      name: '测试工程师',
+      name: '李测试',
       password: hashedPassword,
+      phone: '13888888888',
       departmentId: defaultDepartment.id,
     },
   });
@@ -790,6 +791,172 @@ async function main() {
     create: {
       userId: testUser.id,
       roleId: memberRole.id,
+    },
+  });
+
+  // 为测试工程师添加完整的字段信息
+  const testUserFields = [
+    // 工作信息
+    { fieldKey: 'employee_no', valueString: 'EMP20240001' },
+    { fieldKey: 'employee_status', valueString: '在职' },
+    { fieldKey: 'employee_type', valueString: '正式员工' },
+    { fieldKey: 'sequence', valueString: '技术序列' },
+    { fieldKey: 'direct_supervisor', valueString: '张技术总监' },
+    { fieldKey: 'business_unit', valueString: '产品研发部' },
+    { fieldKey: 'business_unit_leader', valueString: '王研发总监' },
+    { fieldKey: 'position_title', valueString: '高级测试工程师' },
+    { fieldKey: 'tags', valueString: '自动化测试,性能测试' },
+    { fieldKey: 'company_join_date', valueString: '2023-03-15' },
+    { fieldKey: 'join_date', valueString: '2023-03-15' },
+    { fieldKey: 'probation_months', valueNumber: 3 },
+    { fieldKey: 'regular_date', valueString: '2023-06-15' },
+    { fieldKey: 'social_security_no', valueString: '32010619901230123' },
+    { fieldKey: 'housing_fund_no', valueString: '320106199012301234' },
+    { fieldKey: 'join_work_status', valueString: '首次参保' },
+    { fieldKey: 'first_work_date', valueString: '2021-07-01' },
+    { fieldKey: 'seniority_calc_date', valueString: '2021-07-01' },
+    { fieldKey: 'work_years', valueNumber: 3 },
+    { fieldKey: 'company_years', valueNumber: 1 },
+    { fieldKey: 'work_location', valueString: '南京' },
+    { fieldKey: 'company_name', valueString: '北京某某科技有限公司' },
+    { fieldKey: 'onboard_location', valueString: '南京分公司' },
+    
+    // 个人信息
+    { fieldKey: 'english_name', valueString: 'Lisa Li' },
+    { fieldKey: 'gender', valueString: '女' },
+    { fieldKey: 'birth_date', valueString: '1990-12-30' },
+    { fieldKey: 'age', valueNumber: 33 },
+    { fieldKey: 'height', valueNumber: 165 },
+    { fieldKey: 'weight', valueNumber: 55 },
+    { fieldKey: 'blood_type', valueString: 'A型' },
+    { fieldKey: 'medical_history', valueString: '无' },
+    { fieldKey: 'id_number', valueString: '320106199012301234' },
+    { fieldKey: 'nationality', valueString: '中国' },
+    { fieldKey: 'ethnicity', valueString: '汉族' },
+    { fieldKey: 'political_status', valueString: '群众' },
+    { fieldKey: 'birthplace', valueString: '江苏南京' },
+    { fieldKey: 'household_type', valueString: '城镇' },
+    { fieldKey: 'household_province', valueString: '江苏省' },
+    { fieldKey: 'household_city', valueString: '南京市' },
+    { fieldKey: 'household_address', valueString: '江苏省南京市鼓楼区某某街道123号' },
+    { fieldKey: 'id_card_address', valueString: '江苏省南京市鼓楼区某某街道123号' },
+    { fieldKey: 'current_address', valueString: '江苏省南京市建邺区某某小区456号' },
+    { fieldKey: 'qq', valueString: '123456789' },
+    { fieldKey: 'wechat', valueString: 'litest123' },
+    { fieldKey: 'personal_email', valueString: 'litest@gmail.com' },
+  ];
+
+  for (const field of testUserFields) {
+    const fieldDef = await prisma.fieldDefinition.findUnique({
+      where: { key: field.fieldKey }
+    });
+    
+    if (fieldDef) {
+      await prisma.userFieldValue.upsert({
+        where: {
+          userId_fieldId: {
+            userId: testUser.id,
+            fieldId: fieldDef.id,
+          },
+        },
+        update: {
+          valueString: field.valueString,
+          valueNumber: field.valueNumber,
+        },
+        create: {
+          userId: testUser.id,
+          fieldId: fieldDef.id,
+          valueString: field.valueString,
+          valueNumber: field.valueNumber,
+        },
+      });
+    }
+  }
+
+  // 为测试工程师添加教育经历
+  await prisma.userEducation.create({
+    data: {
+      userId: testUser.id,
+      degree: '本科',
+      school: '南京大学',
+      major: '计算机科学与技术',
+      enrollDate: new Date('2017-09-01'),
+      graduateDate: new Date('2021-06-30'),
+      studyForm: '全日制',
+      schoolingYears: 4,
+      degreeName: '工学学士',
+      awardingCountry: '中国',
+      awardingInstitution: '南京大学',
+      awardingDate: new Date('2021-07-01'),
+      languageLevel: 'CET-6',
+    },
+  });
+
+  // 添加工作经历
+  await prisma.userWorkExperience.create({
+    data: {
+      userId: testUser.id,
+      company: '上海某某软件公司',
+      department: '测试部',
+      position: '初级测试工程师',
+      startDate: new Date('2021-07-01'),
+      endDate: new Date('2023-02-28'),
+    },
+  });
+
+  // 添加紧急联系人
+  await prisma.userEmergencyContact.create({
+    data: {
+      userId: testUser.id,
+      name: '李父亲',
+      relation: '父亲',
+      phone: '13666666666',
+      address: '江苏省南京市鼓楼区某某街道123号',
+    },
+  });
+
+  // 添加家庭成员
+  await prisma.userFamilyMember.create({
+    data: {
+      userId: testUser.id,
+      name: '李母亲',
+      relation: '母亲',
+      organization: '南京某某医院',
+      contact: '13777777777',
+    },
+  });
+
+  // 添加合同信息
+  await prisma.userContract.create({
+    data: {
+      userId: testUser.id,
+      contractNo: 'HT202303001',
+      company: '北京某某科技有限公司',
+      contractType: '劳动合同',
+      startDate: new Date('2023-03-15'),
+      endDate: new Date('2026-03-14'),
+      signedTimes: 1,
+    },
+  });
+
+  // 添加证件信息
+  await prisma.userDocument.create({
+    data: {
+      userId: testUser.id,
+      docType: '身份证',
+      docNumber: '320106199012301234',
+      validUntil: new Date('2030-12-30'),
+    },
+  });
+
+  // 添加银行账户
+  await prisma.userBankAccount.create({
+    data: {
+      userId: testUser.id,
+      accountName: '李测试',
+      bankName: '招商银行',
+      bankBranch: '南京分行营业部',
+      accountNumber: '6214830012345678',
     },
   });
 
@@ -866,14 +1033,7 @@ async function main() {
   });
 
   // 为Issue1添加标签
-  await prisma.issue.update({
-    where: { id: issue1.id },
-    data: {
-      tags: {
-        connect: [{ id: featureTag.id }, { id: urgentTag.id }],
-      },
-    },
-  });
+  // Tags will be handled separately through IssueTagRelation
 
   // Issue 2: 内部反馈 - 性能优化
   const issue2 = await prisma.issue.upsert({
@@ -897,14 +1057,7 @@ async function main() {
     },
   });
 
-  await prisma.issue.update({
-    where: { id: issue2.id },
-    data: {
-      tags: {
-        connect: [{ id: optimizationTag.id }],
-      },
-    },
-  });
+  // Tags will be handled separately through IssueTagRelation
 
   // Issue 3: 数据分析 - 新功能
   const issue3 = await prisma.issue.upsert({
@@ -928,14 +1081,7 @@ async function main() {
     },
   });
 
-  await prisma.issue.update({
-    where: { id: issue3.id },
-    data: {
-      tags: {
-        connect: [{ id: featureTag.id }],
-      },
-    },
-  });
+  // Tags will be handled separately through IssueTagRelation
 
   // Issue 4: 战略需求 - 已进入开发阶段
   const issue4 = await prisma.issue.upsert({

@@ -1,4 +1,4 @@
-import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
+import { Resolver, Query, Mutation, Args, ObjectType, Field } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AccessControlService } from './access-control.service';
@@ -78,6 +78,41 @@ export class AccessControlResolver {
     await this.acl.updateDepartmentLeaders({ departmentId, leaderUserIds });
     return true;
   }
+
+  // === 组织结构：部门列表（供前端下拉/树使用） ===
+  @UseGuards(JwtAuthGuard)
+  @Query(() => [DepartmentItem], { name: 'departments' })
+  async departments(): Promise<DepartmentItem[]> {
+    const rows = await (this.acl as any).prisma.department.findMany({
+      select: { id: true, name: true, parentId: true, leaderUserIds: true },
+      orderBy: { name: 'asc' },
+    });
+    return rows as any;
+  }
+
+  // === 角色管理：设置用户角色（覆盖） ===
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('org_visibility:configure')
+  @Mutation(() => Boolean, { name: 'setUserRoles' })
+  async setUserRoles(
+    @Args('userId') userId: string,
+    @Args({ name: 'roleNames', type: () => [String] }) roleNames: string[],
+  ): Promise<boolean> {
+    await this.acl.setUserRoles({ userId, roleNames });
+    return true;
+  }
+}
+
+@ObjectType()
+class DepartmentItem {
+  @Field(() => String)
+  id!: string;
+  @Field(() => String)
+  name!: string;
+  @Field(() => String, { nullable: true })
+  parentId?: string | null;
+  @Field(() => [String], { nullable: true })
+  leaderUserIds?: string[] | null;
 }
 
 

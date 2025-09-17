@@ -1,5 +1,5 @@
 import { Resolver, Query, Mutation, Args, Int } from '@nestjs/graphql';
-import { UseGuards } from '@nestjs/common';
+import { UseGuards, ForbiddenException } from '@nestjs/common';
 import { UsersService, CreateUserInput, UpdateUserInput, UpdateUserRolesInput, UserFilters, UpdateUserFieldValueEntry } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -9,6 +9,7 @@ import { ObjectType, Field, InputType, ID } from '@nestjs/graphql';
 import { FieldVisibilityService } from '../field-visibility/field-visibility.service';
 import { AccessControlService } from '../access-control/access-control.service';
 import { StorageService } from '../storage/storage.service';
+import { IsArray, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
 @ObjectType()
 export class Department {
@@ -26,7 +27,7 @@ export class Department {
 }
 
 @ObjectType()
-class Role {
+export class Role {
   @Field(() => ID)
   id: string;
 
@@ -120,6 +121,98 @@ class UserFieldValueType {
 }
 
 @ObjectType()
+class UserEducationType {
+  @Field(() => ID)
+  id: string;
+  @Field()
+  degree: string;
+  @Field()
+  school: string;
+  @Field({ nullable: true })
+  major?: string;
+  @Field({ nullable: true })
+  startDate?: string;
+  @Field({ nullable: true })
+  endDate?: string;
+}
+
+@ObjectType()
+class UserWorkExperienceType {
+  @Field(() => ID)
+  id: string;
+  @Field()
+  company: string;
+  @Field()
+  position: string;
+  @Field({ nullable: true })
+  startDate?: string;
+  @Field({ nullable: true })
+  endDate?: string;
+}
+
+@ObjectType()
+class UserEmergencyContactType {
+  @Field(() => ID)
+  id: string;
+  @Field()
+  name: string;
+  @Field({ nullable: true })
+  relation?: string;
+  @Field({ nullable: true })
+  phone?: string;
+}
+
+@ObjectType()
+class UserFamilyMemberType {
+  @Field(() => ID)
+  id: string;
+  @Field()
+  name: string;
+  @Field()
+  relation: string;
+}
+
+@ObjectType()
+class UserContractType {
+  @Field(() => ID)
+  id: string;
+  @Field()
+  contractNo: string;
+  @Field()
+  contractType: string;
+  @Field()
+  company: string;
+  @Field({ nullable: true })
+  startDate?: string;
+  @Field({ nullable: true })
+  endDate?: string;
+}
+
+@ObjectType()
+class UserDocumentType {
+  @Field(() => ID)
+  id: string;
+  @Field()
+  docType: string;
+  @Field()
+  docNumber: string;
+  @Field({ nullable: true })
+  validUntil?: string;
+}
+
+@ObjectType()
+class UserBankAccountType {
+  @Field(() => ID)
+  id: string;
+  @Field()
+  accountName: string;
+  @Field()
+  bankName: string;
+  @Field()
+  accountNumber: string;
+}
+
+@ObjectType()
 export class User {
   @Field(() => ID)
   id: string;
@@ -170,14 +263,14 @@ export class User {
   @Field(() => [UserFieldValueType], { nullable: true })
   fieldValues?: UserFieldValueType[];
   
-  // 多明细（简化返回，直接按实体返回）
-  @Field(() => [String], { nullable: true }) educations?: any[];
-  @Field(() => [String], { nullable: true }) workExperiences?: any[];
-  @Field(() => [String], { nullable: true }) familyMembers?: any[];
-  @Field(() => [String], { nullable: true }) emergencyContacts?: any[];
-  @Field(() => [String], { nullable: true }) contracts?: any[];
-  @Field(() => [String], { nullable: true }) documents?: any[];
-  @Field(() => [String], { nullable: true }) bankAccounts?: any[];
+  // 多明细（完整对象类型）
+  @Field(() => [UserEducationType], { nullable: true }) educations?: UserEducationType[];
+  @Field(() => [UserWorkExperienceType], { nullable: true }) workExperiences?: UserWorkExperienceType[];
+  @Field(() => [UserFamilyMemberType], { nullable: true }) familyMembers?: UserFamilyMemberType[];
+  @Field(() => [UserEmergencyContactType], { nullable: true }) emergencyContacts?: UserEmergencyContactType[];
+  @Field(() => [UserContractType], { nullable: true }) contracts?: UserContractType[];
+  @Field(() => [UserDocumentType], { nullable: true }) documents?: UserDocumentType[];
+  @Field(() => [UserBankAccountType], { nullable: true }) bankAccounts?: UserBankAccountType[];
   @Field(() => [String], { nullable: true }) attachments?: any[];
 }
 
@@ -241,46 +334,81 @@ class DeleteUserResponse {
 @InputType()
 class CreateUserInputType {
   @Field()
+  @IsEmail()
   email: string;
 
-  @Field()
-  username: string;
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  username?: string;
 
   @Field()
+  @IsString()
   name: string;
 
   @Field()
+  @IsString()
+  @MinLength(6)
   password: string;
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   departmentId?: string;
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   phone?: string;
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   avatar?: string;
 
   @Field(() => [String], { nullable: true })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   roleIds?: string[];
 }
 
 @InputType()
 class UpdateUserInputType {
   @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   name?: string;
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   phone?: string;
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   avatar?: string;
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
   departmentId?: string;
 
   @Field({ nullable: true })
   isActive?: boolean;
+}
+
+@InputType()
+class UpdatePasswordInputType {
+  @Field()
+  @IsString()
+  currentPassword: string;
+
+  @Field()
+  @IsString()
+  @MinLength(6)
+  newPassword: string;
 }
 
 @InputType()
@@ -451,6 +579,61 @@ export class UsersResolver {
     @Args('objectPath') objectPath: string,
     @CurrentUser() currentUser: any,
   ): Promise<string> {
+    // 解析路径，提取 userId 与 attachmentType
+    // 期望形如："<userId>/<attachmentType>/<yyyy>/<mm>/<uuid>-<filename>"
+    const parts = (objectPath || '').split('/');
+    const targetUserId = parts[0];
+    const attachmentType = parts[1];
+    if (!targetUserId || !attachmentType) {
+      throw new ForbiddenException('无效的附件路径');
+    }
+
+    // 超管直通
+    const viewerId = currentUser?.sub ?? currentUser?.id;
+    if (await this.acl.isSuperAdmin(viewerId)) {
+      const { signedUrl } = await this.storage.createSignedDownloadUrl(objectPath, 600);
+      return signedUrl;
+    }
+
+    // AttachmentType -> 字段key映射（与 seed.ts 保持一致）
+    const typeToFieldKey: Record<string, string> = {
+      ID_CARD: 'document_id_card',
+      CMB_BANK_CARD: 'document_bank_card',
+      HOUSEHOLD_MAIN: 'document_household_book_index',
+      HOUSEHOLD_SELF: 'document_household_book_self',
+      EDU_DIPLOMA: 'document_education_certificate',
+      EDU_DEGREE: 'document_degree_certificate',
+      RESIGNATION_CERT: 'document_resignation_proof',
+      MEDICAL_REPORT: 'document_medical_report',
+      ORIGINAL_RESUME: 'document_resume',
+      ONBOARD_FORM: 'document_onboarding_form',
+      STUDENT_ID: 'document_student_card',
+      PERSONALITY_TEST: 'document_personality_test',
+    };
+    const fieldKey = typeToFieldKey[attachmentType] || '';
+
+    // 1) 若存在下载临时授权（download），放行
+    const hasDownloadGrant = fieldKey
+      ? await this.acl.hasTemporaryGrant({
+          granteeId: viewerId,
+          resource: 'user',
+          fieldKey,
+          action: 'download',
+          targetUserId,
+        })
+      : false;
+
+    // 2) 否则按“可读可见字段”判定（包含 HR 敏感/极敏感读权限与可见性范围）
+    let canReadThis = false;
+    if (fieldKey) {
+      const visible = await this.fieldVisibility.getVisibleFieldKeys(viewerId, 'user', targetUserId);
+      canReadThis = visible.includes(fieldKey);
+    }
+
+    if (!hasDownloadGrant && !canReadThis) {
+      throw new ForbiddenException('无权下载该附件');
+    }
+
     const { signedUrl } = await this.storage.createSignedDownloadUrl(objectPath, 600);
     return signedUrl;
   }
@@ -460,10 +643,15 @@ export class UsersResolver {
   @RequirePermissions('user:read')
   async user(@Args('id') id: string, @CurrentUser() current?: any) {
     const data = await this.usersService.findOne(id);
-    // 基于可见性隐藏 phone（示例：联系方式）
-    const visible = await this.fieldVisibility.getVisibleFieldKeys(current?.sub ?? current?.id, 'user', id)
+    // 基于可见性：字段级过滤/脱敏
+    const visible = await this.fieldVisibility.getVisibleFieldKeys(current?.sub ?? current?.id, 'user', id);
+    // 1) 联系方式：未授权则置空
     if (!visible.includes('contact_phone')) {
       data.phone = null;
+    }
+    // 2) EAV 字段：仅返回可见字段集合
+    if (Array.isArray((data as any).fieldValues)) {
+      (data as any).fieldValues = (data as any).fieldValues.filter((fv: any) => visible.includes(fv.fieldKey));
     }
     return data;
   }
@@ -497,6 +685,26 @@ export class UsersResolver {
     @CurrentUser() currentUser: any,
   ) {
     return this.usersService.update(id, input, currentUser.sub);
+  }
+
+  // 自助修改头像/手机号/姓名（不含部门/状态等敏感字段）
+  @Mutation(() => User)
+  @UseGuards(JwtAuthGuard)
+  async updateMyProfile(
+    @Args('input') input: UpdateUserInputType,
+    @CurrentUser() currentUser: any,
+  ) {
+    return this.usersService.updateSelf(currentUser.sub, input);
+  }
+
+  @Mutation(() => Boolean)
+  @UseGuards(JwtAuthGuard)
+  async updatePassword(
+    @Args('input') input: UpdatePasswordInputType,
+    @CurrentUser() currentUser: any,
+  ) {
+    await this.usersService.updatePassword(currentUser.sub, input.currentPassword, input.newPassword);
+    return true;
   }
 
   // ===== EAV 批量更新 =====
@@ -656,7 +864,14 @@ export class UsersResolver {
     const canExportHighly = await this.acl.hasPermission(currentUserId, 'export', 'highly_sensitive');
 
     const res = await this.usersService.findAll(filters as any, 0, 1000);
-    const visible = await this.fieldVisibility.getVisibleFieldKeys(currentUserId, 'user');
+    // 预取逐行可见字段（按目标用户）
+    const perRowVisible: Record<string, Set<string>> = {};
+    await Promise.all(
+      (res.users || []).map(async (u: any) => {
+        const keys = await this.fieldVisibility.getVisibleFieldKeys(currentUserId, 'user', u.id);
+        perRowVisible[u.id] = new Set(keys);
+      }),
+    );
 
     // 列定义（依据现有User模型可用字段；敏感字段目前未在模型中，保留占位逻辑）
     const baseCols: { key: string; header: string; getter: (u: any) => any }[] = [
@@ -665,9 +880,14 @@ export class UsersResolver {
       { key: 'email', header: '工作邮箱', getter: (u) => u.email },
       { key: 'department', header: '部门', getter: (u) => u.department?.name || '' },
     ];
-
-    if (visible.includes('contact_phone')) {
-      baseCols.push({ key: 'contact_phone', header: '手机', getter: (u) => u.phone || '' });
+    // 是否至少一行可见手机号
+    const anyPhoneVisible = (res.users || []).some((u: any) => perRowVisible[u.id]?.has('contact_phone'));
+    if (anyPhoneVisible) {
+      baseCols.push({
+        key: 'contact_phone',
+        header: '手机',
+        getter: (u) => (perRowVisible[u.id]?.has('contact_phone') ? (u.phone || '') : ''),
+      });
     }
 
     // 敏感与极敏感示例（当前User模型无对应字段，留作后续扩展）
@@ -724,5 +944,13 @@ export class UsersResolver {
     @CurrentUser() currentUser: any,
   ): Promise<LeaveBalanceItem[]> {
     return this.usersService.getUserLeaveBalances(userId, currentUser.sub);
+  }
+
+  // ===== 角色管理 =====
+  @Query(() => [Role])
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('org_visibility:configure')
+  async roles() {
+    return this.usersService.getAllRoles();
   }
 }
