@@ -1,5 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // 为不同运行环境预取引擎：本地(mac) + Railway(Debian OpenSSL 3)
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
