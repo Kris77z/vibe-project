@@ -21,23 +21,15 @@ async function bootstrap() {
     transform: true,
   }));
   
-  // 启用CORS（支持通过 CORS_ORIGIN 配置多个来源，逗号分隔）；
-  // 若生产环境未配置，则暂时放行所有来源，避免预检(OPTIONS)被 405 拦截。
-  const rawOrigins = process.env.CORS_ORIGIN;
-  const allowlist = rawOrigins ? rawOrigins.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const corsOriginFn = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    if (!origin) return callback(null, true); // 非浏览器或同域
-    if (allowlist.length === 0) return callback(null, true); // 未配置时放行，避免 405
-    callback(null, allowlist.includes(origin));
-  };
-
+  // 启用CORS（从配置文件读取，支持通过 CORS_ORIGIN 配置多个来源，逗号分隔）
+  const corsConfig = configService.get('app.cors');
+  console.log('🌐 CORS 配置:', corsConfig);
+  
   app.enableCors({
-    origin: corsOriginFn as any,
-    credentials: true,
-    methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
-    allowedHeaders: ['Content-Type','Authorization'],
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
+    origin: corsConfig.origin,
+    credentials: corsConfig.credentials,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
   
   // 设置全局前缀
