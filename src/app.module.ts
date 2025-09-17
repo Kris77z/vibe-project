@@ -36,11 +36,12 @@ import { FieldVisibilityModule } from './modules/field-visibility/field-visibili
       envFilePath: '.env',
       load: [appConfig, databaseConfig, jwtConfig, gitlabConfig],
     }),
-    
+
     // GraphQL模块
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
-      autoSchemaFile: 'schema.gql',
+      // 生产环境使用内存生成，避免写入 schema.gql 导致的权限问题；开发仍写入文件便于调试
+      autoSchemaFile: process.env.NODE_ENV === 'production' ? true : 'schema.gql',
       sortSchema: true,
       playground: process.env.NODE_ENV !== 'production',
       introspection: true,
@@ -52,10 +53,10 @@ import { FieldVisibilityModule } from './modules/field-visibility/field-visibili
         path: error.path,
       }),
     }),
-    
+
     // 核心模块
     PrismaModule,
-    
+
     // 业务模块
     AuthModule,
     UsersModule,
