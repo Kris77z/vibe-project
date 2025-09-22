@@ -9,7 +9,7 @@ import { ObjectType, Field, InputType, ID } from '@nestjs/graphql';
 import { FieldVisibilityService } from '../field-visibility/field-visibility.service';
 import { AccessControlService } from '../access-control/access-control.service';
 import { StorageService } from '../storage/storage.service';
-import { IsArray, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsOptional, IsString, MinLength, IsBoolean } from 'class-validator';
 
 @ObjectType()
 export class Department {
@@ -323,6 +323,18 @@ class UsersResponse {
 }
 
 @ObjectType()
+class ImportUsersResult {
+  @Field(() => Int)
+  created!: number;
+
+  @Field(() => Int)
+  skipped!: number;
+
+  @Field(() => [String])
+  errors!: string[];
+}
+
+@ObjectType()
 class DeleteUserResponse {
   @Field()
   success: boolean;
@@ -396,6 +408,8 @@ class UpdateUserInputType {
   departmentId?: string;
 
   @Field({ nullable: true })
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }
 
@@ -952,5 +966,24 @@ export class UsersResolver {
   @RequirePermissions('org_visibility:configure')
   async roles() {
     return this.usersService.getAllRoles();
+  }
+
+  // ===== 批量导入人员（CSV/Markdown表格） =====
+  @Mutation(() => ImportUsersResult)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:create')
+  async importUsers(
+    @Args('text') text: string,
+    @CurrentUser() currentUser: any,
+  ): Promise<ImportUsersResult> {
+    return this.usersService.importUsers(text, currentUser.sub);
+  }
+
+  // 下载导入模板表头（供前端生成Excel/CSV模板）
+  @Query(() => [String])
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('user:read')
+  async userImportHeaders(): Promise<string[]> {
+    return this.usersService.getUserImportHeaders();
   }
 }

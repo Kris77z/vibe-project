@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { User, Prisma } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
@@ -855,6 +857,157 @@ export class UsersService {
         { name: 'asc' }
       ]
     });
+  }
+
+  // ===== 批量导入人员：支持CSV或Markdown表格 =====
+  async importUsers(text: string, currentUserId: string): Promise<{ created: number; skipped: number; errors: string[] }> {
+    const canCreate = await this.acl.hasPermission(currentUserId, 'user', 'create');
+    if (!canCreate) throw new ForbiddenException('无权导入人员');
+
+    const lines = (text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) return { created: 0, skipped: 0, errors: ['内容为空'] };
+
+    // 解析为二维数组 rows
+    let rows: string[][] = [];
+    if (lines[0].startsWith('|')) {
+      // Markdown表格：保留空单元格位置，避免列错位
+      const mdRows = lines.filter(l => l.startsWith('|'));
+      const splitMdRow = (line: string) => line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(s => s.trim());
+      const header = splitMdRow(mdRows[0]);
+      const hasDivider = mdRows[1] && /:?-+:?/.test(mdRows[1]);
+      const dataRows = mdRows.slice(hasDivider ? 2 : 1);
+      rows = [header, ...dataRows.map(splitMdRow)];
+    } else {
+      // CSV
+      rows = lines.map(l => l.split(',').map(s => s.trim()));
+    }
+
+    if (rows.length < 2) return { created: 0, skipped: 0, errors: ['未检测到数据行'] };
+
+    const header = rows[0].map(h => h.toLowerCase());
+    const idx = (name: string) => header.indexOf(name);
+    const iId = (() => { const cands = ['员工编码','员工id','id','用户id','个人id']; for (const k of cands){ const i = idx(k); if (i!==-1) return i; } return -1; })();
+    const iName = idx('姓名') !== -1 ? idx('姓名') : idx('name');
+    const iEmail = idx('邮箱') !== -1 ? idx('邮箱') : idx('email');
+    const iDepartment = idx('部门') !== -1 ? idx('部门') : idx('department');
+    const iPhone = idx('手机') !== -1 ? idx('手机') : idx('phone');
+
+    if (iName === -1 || iEmail === -1) {
+      return { created: 0, skipped: 0, errors: ['表头需包含：姓名、邮箱（可选：部门、手机）'] };
+    }
+
+    // 值清洗：去除引号/占位说明文本，将 NaN/无/要填/人事录入 等视为空
+    const normalize = (val?: string) => {
+      if (val === undefined || val === null) return '';
+      let s = String(val).trim();
+      if (!s) return '';
+      s = s.replace(/^\s*["']|["']\s*$/g, '');
+      const lower = s.toLowerCase();
+      if (['nan', 'null', 'n/a', '-', '—', '－'].includes(lower)) return '';
+      if (/^(无|没有)$/.test(s)) return '';
+      if (/(人事(?:部)?录入|要填|自动计算|格式[:：]|固定为|尽量填|示例|说明)/.test(s)) return '';
+      return s;
+    };
+
+    let created = 0; let skipped = 0; const errors: string[] = [];
+    for (let r = 1; r < rows.length; r++) {
+      const cols = rows[r];
+      const rawId = iId !== -1 ? cols[iId] : undefined;
+      const rawName = cols[iName];
+      const rawEmail = cols[iEmail];
+      const rawDept = iDepartment !== -1 ? cols[iDepartment] : undefined;
+      const rawPhone = iPhone !== -1 ? cols[iPhone] : undefined;
+
+      const idVal = normalize(rawId);
+      const name = normalize(rawName);
+      const email = normalize(rawEmail);
+      const deptName = normalize(rawDept);
+      const phone = normalize(rawPhone);
+
+      // 解析部门名称，尽早获得 departmentId，供“更新”和“创建”两种路径复用
+      let departmentId: string | undefined = undefined;
+      if (deptName) {
+        const dept = await this.prisma.department.findFirst({ where: { name: deptName } });
+        if (dept) {
+          departmentId = dept.id;
+        }
+      }
+
+      // 空白或全是占位的行：直接跳过
+      if (!idVal && !name && !email && !deptName && !phone) { continue; }
+
+      if (!idVal && (!name || !email)) { skipped++; continue; }
+
+      // 若提供员工编码（=用户ID），则走更新逻辑
+      if (idVal) {
+        const existingById = await this.prisma.user.findUnique({ where: { id: idVal } });
+        if (existingById) {
+
+          // 若改邮箱，需检查冲突
+        if (email && email !== existingById.email) {
+          const conflict = await this.prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
+            if (conflict) { skipped++; errors.push(`第${r+1}行邮箱已存在: ${email}`); continue; }
+          }
+
+          try {
+            await this.update(idVal, { name, phone, departmentId: departmentId }, currentUserId);
+            // 邮箱更新需要单独处理
+            if (email && email !== existingById.email) {
+              await this.prisma.user.update({ where: { id: idVal }, data: { email } });
+            }
+          } catch (e:any) {
+            skipped++; errors.push(`第${r+1}行更新失败: ${e?.message || e}`); continue;
+          }
+          continue;
+        }
+        // 若指定了ID但库中不存在，则走创建分支（不报错），下面继续
+      }
+
+      // 创建：若邮箱已存在则跳过
+      const existing = email ? await this.prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } }) : null;
+      if (existing) { skipped++; continue; }
+
+
+      try {
+        await this.create({
+          email,
+          name,
+          username: email.split('@')[0],
+          password: Math.random().toString(36).slice(2, 10) + 'Aa!1',
+          departmentId,
+          phone,
+        }, currentUserId);
+        created++;
+      } catch (e: any) {
+        skipped++;
+        errors.push(`第${r+1}行导入失败: ${e?.message || e}`);
+      }
+    }
+
+    return { created, skipped, errors };
+  }
+
+  // ===== 获取导入模板表头：从 docs/花名册样例.md 提取第一行表头 =====
+  async getUserImportHeaders(): Promise<string[]> {
+    try {
+      const root = path.resolve(__dirname, '../../..');
+      const filePath = path.join(root, 'docs', '花名册样例.md');
+      const content = await fs.promises.readFile(filePath, 'utf-8');
+      const lines = content.split(/\r?\n/);
+      const headerLine = lines.find(l => l.trim().startsWith('|'));
+      if (!headerLine) return ['姓名', '邮箱', '部门', '手机', '员工编码'];
+      const headers = headerLine
+        .replace(/^\|/, '')
+        .replace(/\|$/, '')
+        .split('|')
+        .map(s => s.trim())
+        .filter(Boolean)
+        // 去除“序号”列（模板中第一列，不参与导入）
+        .filter(h => h !== '序号');
+      return headers;
+    } catch {
+      return ['姓名', '邮箱', '部门', '手机', '员工编码'];
+    }
   }
 }
 

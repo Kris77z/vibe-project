@@ -7,7 +7,7 @@
     "build": "nest build -p tsconfig.build.json",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
-    "start:dev": "nest start --watch",
+    "start:dev": "nest start --watch -p tsconfig.build.json",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
@@ -22,6 +22,11 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "db:seed": "ts-node prisma/seed.ts",
+    "db:map-enums": "ts-node prisma/scripts/map-enums.ts",
+    "db:prepare-enum": "ts-node prisma/scripts/prepare-enum-two-tier.ts",
+    "db:ensure-core": "ts-node prisma/scripts/ensure-core-tables.ts",
+    "db:cleanup": "ts-node prisma/cleanup-users.ts",
+    "org:seed": "ts-node prisma/scripts/seed-organization.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

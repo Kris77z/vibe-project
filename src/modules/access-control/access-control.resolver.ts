@@ -79,12 +79,23 @@ export class AccessControlResolver {
     return true;
   }
 
+  // === 组织结构：公司列表（供前端下拉/树使用） ===
+  @UseGuards(JwtAuthGuard)
+  @Query(() => [CompanyItem], { name: 'companies' })
+  async companies(): Promise<CompanyItem[]> {
+    const rows = await (this.acl as any).prisma.company.findMany({
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+    return rows as any;
+  }
+
   // === 组织结构：部门列表（供前端下拉/树使用） ===
   @UseGuards(JwtAuthGuard)
   @Query(() => [DepartmentItem], { name: 'departments' })
   async departments(): Promise<DepartmentItem[]> {
     const rows = await (this.acl as any).prisma.department.findMany({
-      select: { id: true, name: true, parentId: true, leaderUserIds: true },
+      select: { id: true, name: true, parentId: true, companyId: true, leaderUserIds: true },
       orderBy: { name: 'asc' },
     });
     return rows as any;
@@ -104,6 +115,18 @@ export class AccessControlResolver {
 }
 
 @ObjectType()
+class CompanyItem {
+  @Field(() => String)
+  id!: string;
+
+  @Field(() => String)
+  name!: string;
+
+  @Field(() => String, { nullable: true })
+  code?: string;
+}
+
+@ObjectType()
 class DepartmentItem {
   @Field(() => String)
   id!: string;
@@ -111,6 +134,8 @@ class DepartmentItem {
   name!: string;
   @Field(() => String, { nullable: true })
   parentId?: string | null;
+  @Field(() => String, { nullable: true })
+  companyId?: string;
   @Field(() => [String], { nullable: true })
   leaderUserIds?: string[] | null;
 }

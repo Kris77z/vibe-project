@@ -47,17 +47,17 @@ export class FieldVisibilityService {
       if (!canSee) return [];
     }
 
-    // 超级管理员：全部可见（按字段分级策略）
-    if (await this.acl.isSuperAdmin(userId)) {
-      return fields.map((f) => f.key);
-    }
+    // 超/管标记
+    const isSuper = await this.acl.isSuperAdmin(userId);
+    const roleNames = await this.acl.getUserRoleNames(userId);
+    const isAdmin = roleNames.includes('admin') || roleNames.includes('super_admin') || isSuper;
+
+    // 超级管理员：全部可见
+    if (isSuper) return fields.map((f) => f.key);
 
     // 预先缓存常用判定，避免在循环内重复 DB 查询
     const isSelf = targetUserId && targetUserId === userId;
-    const hasContactRead = await this.acl.hasPermission(userId, 'contact', 'read');
-    const hasSensitiveRead = await this.acl.hasPermission(userId, 'user_sensitive', 'read');
-    const hasHighlySensitiveRead = await this.acl.hasPermission(userId, 'user_highly_sensitive', 'read');
-    const isLeader = targetUserId ? await this.acl.isLeaderForUser(userId, targetUserId) : false;
+    // 两档后不再需要敏感与主管链
 
     // 预取当前用户在该资源上的所有有效临时授权（read），减少逐字段的 DB 查询
     const now = new Date();
@@ -81,60 +81,19 @@ export class FieldVisibilityService {
         continue;
       }
 
-      // INTERNAL -> 需要 contact:read 或本人视图，或临时授权；若 viewer 为部门链路负责人，则放开主管白名单
-      if (f.classification === 'INTERNAL') {
-        if (isSelf) {
-          result.push(f.key);
-          continue;
-        }
-        if (!hasContactRead) {
-          const managerWhitelist = new Set([
-            'name', 'department', 'position', 'employee_no', 'employment_status', 'join_date', 'contact_work_email',
+      // CONFIDENTIAL：管理员可见；或 HR 且同公司
+      if (f.classification === 'CONFIDENTIAL') {
+        if (isAdmin) { result.push(f.key); continue; }
+        // HR 判断：拥有 hr_manager 角色 且 与目标用户同公司
+        if (targetUserId) {
+          const [viewer, target] = await Promise.all([
+            this.prisma.user.findUnique({ where: { id: userId }, select: { companyId: true, userRoles: { include: { role: true } } } }),
+            this.prisma.user.findUnique({ where: { id: targetUserId }, select: { companyId: true } }),
           ]);
-          if (isLeader && managerWhitelist.has(f.key)) {
-            result.push(f.key);
-            continue;
-          }
-          // 仅在存在该字段的授权时，才进一步校验授权范围，避免每个字段都查库
-          if (grantedFieldKeys.has(f.key)) {
-            const granted = await this.acl.hasTemporaryGrant({ granteeId: userId, resource, fieldKey: f.key, action: 'read', targetUserId });
-            if (granted) {
-              result.push(f.key);
-              continue;
-            }
-          }
+          const isHR = (viewer?.userRoles || []).some((ur) => ur.role.name === 'hr_manager');
+          const sameCompany = !!viewer?.companyId && !!target?.companyId && viewer.companyId === target.companyId;
+          if (isHR && sameCompany) { result.push(f.key); }
         }
-        if (hasContactRead) result.push(f.key);
-        continue;
-      }
-
-      // SENSITIVE -> 需要 user_sensitive:read 或临时授权（可带部门范围）
-      if (f.classification === 'SENSITIVE') {
-        if (!hasSensitiveRead) {
-          if (grantedFieldKeys.has(f.key)) {
-            const granted = await this.acl.hasTemporaryGrant({ granteeId: userId, resource, fieldKey: f.key, action: 'read', targetUserId });
-            if (granted) {
-              result.push(f.key);
-              continue;
-            }
-          }
-        }
-        if (hasSensitiveRead) result.push(f.key);
-        continue;
-      }
-
-      // HIGHLY_SENSITIVE -> 需要 user_highly_sensitive:read 或临时授权（可带部门范围）
-      if (f.classification === 'HIGHLY_SENSITIVE') {
-        if (!hasHighlySensitiveRead) {
-          if (grantedFieldKeys.has(f.key)) {
-            const granted = await this.acl.hasTemporaryGrant({ granteeId: userId, resource, fieldKey: f.key, action: 'read', targetUserId });
-            if (granted) {
-              result.push(f.key);
-              continue;
-            }
-          }
-        }
-        if (hasHighlySensitiveRead) result.push(f.key);
         continue;
       }
     }

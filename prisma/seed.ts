@@ -257,7 +257,7 @@ async function main() {
     },
   });
 
-  // 5b. 初始化字段分级与字段集（最小集）
+  // 5b. 初始化字段分级与字段集（两档：PUBLIC/CONFIDENTIAL）
   console.log('初始化字段分级与字段集...');
   const fieldDefs = [
     // 企业内展示（公开）
@@ -267,7 +267,7 @@ async function main() {
     { key: 'landline', label: '座机', classification: 'PUBLIC', selfEditable: true },
     { key: 'contact_work_email', label: '工作邮箱', classification: 'PUBLIC', selfEditable: false },
 
-    // 工作信息（内部）
+  // 工作信息（公开）
     { key: 'employee_no', label: '工号', classification: 'INTERNAL', selfEditable: false },
     { key: 'employment_status', label: '人员状态', classification: 'INTERNAL', selfEditable: false },
     { key: 'employee_type', label: '人员类型', classification: 'INTERNAL', selfEditable: false },
@@ -289,10 +289,10 @@ async function main() {
     { key: 'company_belong', label: '所属公司', classification: 'INTERNAL', selfEditable: false },
     { key: 'onboarding_location', label: '入职办理地点', classification: 'INTERNAL', selfEditable: false },
 
-    // 假勤（敏感）
-    { key: 'vacation_balance', label: '假期余额', classification: 'SENSITIVE', selfEditable: false },
+  // 假勤（保密）
+    { key: 'vacation_balance', label: '假期余额', classification: 'CONFIDENTIAL', selfEditable: false },
 
-    // 个人信息（内部）
+  // 个人信息（公开）
     { key: 'english_name', label: '英文名', classification: 'INTERNAL', selfEditable: true },
     { key: 'gender', label: '性别', classification: 'INTERNAL', selfEditable: true },
     { key: 'contact_phone', label: '手机号码', classification: 'INTERNAL', selfEditable: true },
@@ -304,7 +304,7 @@ async function main() {
     { key: 'height_cm', label: '身高(cm)', classification: 'INTERNAL', selfEditable: true },
     { key: 'weight_kg', label: '体重(kg)', classification: 'INTERNAL', selfEditable: true },
     { key: 'blood_type', label: '血型', classification: 'INTERNAL', selfEditable: true },
-    { key: 'medical_history', label: '以往病史', classification: 'SENSITIVE', selfEditable: false },
+    { key: 'medical_history', label: '以往病史', classification: 'CONFIDENTIAL', selfEditable: false },
     { key: 'nationality', label: '国籍', classification: 'INTERNAL', selfEditable: true },
     { key: 'ethnicity', label: '民族', classification: 'INTERNAL', selfEditable: true },
     { key: 'political_status', label: '政治面貌', classification: 'INTERNAL', selfEditable: true },
@@ -313,78 +313,86 @@ async function main() {
     { key: 'household_province', label: '户籍-省', classification: 'INTERNAL', selfEditable: true },
     { key: 'household_city', label: '户籍-市', classification: 'INTERNAL', selfEditable: true },
     { key: 'household_register', label: '户籍(户口所在地)', classification: 'INTERNAL', selfEditable: true },
-    { key: 'id_card_address', label: '身份证地址', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'current_address', label: '现居住地址', classification: 'SENSITIVE', selfEditable: true },
+    { key: 'id_card_address', label: '身份证地址', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'current_address', label: '现居住地址', classification: 'CONFIDENTIAL', selfEditable: true },
 
-    // 证件（极敏感）
-    { key: 'id_type', label: '证件类型', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'id_number', label: '证件号码', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'id_valid_until', label: '有效期至', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'id_days_remaining', label: '到期剩余', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+  // 证件（保密）
+    { key: 'id_type', label: '证件类型', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'id_number', label: '证件号码', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'id_valid_until', label: '有效期至', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'id_days_remaining', label: '到期剩余', classification: 'CONFIDENTIAL', selfEditable: false },
 
-    // 银行（极敏感）
-    { key: 'bank_account_name', label: '开户人姓名', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'bank_branch', label: '开户支行', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'bank_card_number', label: '银行卡号', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+  // 银行（保密）
+    { key: 'bank_account_name', label: '开户人姓名', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'bank_branch', label: '开户支行', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'bank_card_number', label: '银行卡号', classification: 'CONFIDENTIAL', selfEditable: false },
 
-    // 教育经历（内部）
-    { key: 'education_degree', label: '学历', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_school', label: '学校', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_enroll_date', label: '入学日期', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_graduation_date', label: '毕业日期', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_major', label: '所学专业', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_study_form', label: '学习形式', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_schooling_years', label: '学制(年)', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_degree_name', label: '学位', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_awarding_country', label: '学位授予国家', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_awarding_institution', label: '学位授予单位', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_awarding_date', label: '学位授予日期', classification: 'INTERNAL', selfEditable: false },
-    { key: 'education_language_level', label: '外语级别', classification: 'INTERNAL', selfEditable: false },
+  // 教育经历（保密）
+    { key: 'education_degree', label: '学历', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_school', label: '学校', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_enroll_date', label: '入学日期', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_graduation_date', label: '毕业日期', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_major', label: '所学专业', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_study_form', label: '学习形式', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_schooling_years', label: '学制(年)', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_degree_name', label: '学位', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_awarding_country', label: '学位授予国家', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_awarding_institution', label: '学位授予单位', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_awarding_date', label: '学位授予日期', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'education_language_level', label: '外语级别', classification: 'CONFIDENTIAL', selfEditable: false },
 
-    // 工作经历（内部）
-    { key: 'workexp_company', label: '公司', classification: 'INTERNAL', selfEditable: false },
-    { key: 'workexp_department', label: '部门', classification: 'INTERNAL', selfEditable: false },
-    { key: 'workexp_position', label: '职务', classification: 'INTERNAL', selfEditable: false },
-    { key: 'workexp_start_date', label: '开始时间', classification: 'INTERNAL', selfEditable: false },
-    { key: 'workexp_end_date', label: '结束时间', classification: 'INTERNAL', selfEditable: false },
+  // 工作经历（保密）
+    { key: 'workexp_company', label: '公司', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'workexp_department', label: '部门', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'workexp_position', label: '职务', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'workexp_start_date', label: '开始时间', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'workexp_end_date', label: '结束时间', classification: 'CONFIDENTIAL', selfEditable: false },
 
-    // 紧急联系人（敏感）
-    { key: 'emergency_name', label: '紧急联系人姓名', classification: 'SENSITIVE', selfEditable: true },
-    { key: 'emergency_relation', label: '紧急联系人关系', classification: 'SENSITIVE', selfEditable: true },
-    { key: 'emergency_phone', label: '紧急联系电话', classification: 'SENSITIVE', selfEditable: true },
-    { key: 'emergency_address', label: '紧急联系人住址', classification: 'SENSITIVE', selfEditable: true },
+    // 紧急联系人（保密）
+    { key: 'emergency_name', label: '紧急联系人姓名', classification: 'CONFIDENTIAL', selfEditable: true },
+    { key: 'emergency_relation', label: '紧急联系人关系', classification: 'CONFIDENTIAL', selfEditable: true },
+    { key: 'emergency_phone', label: '紧急联系电话', classification: 'CONFIDENTIAL', selfEditable: true },
+    { key: 'emergency_address', label: '紧急联系人住址', classification: 'CONFIDENTIAL', selfEditable: true },
 
-    // 家庭成员（敏感）
-    { key: 'family_name', label: '家庭成员姓名', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'family_relation', label: '家庭成员关系', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'family_organization', label: '家庭成员工作单位', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'family_contact', label: '家庭成员联系方式', classification: 'SENSITIVE', selfEditable: false },
+    // 家庭成员（保密）
+    { key: 'family_name', label: '家庭成员姓名', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'family_relation', label: '家庭成员关系', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'family_organization', label: '家庭成员工作单位', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'family_contact', label: '家庭成员联系方式', classification: 'CONFIDENTIAL', selfEditable: false },
 
-    // 合同信息（敏感）
-    { key: 'contract_no', label: '合同编号', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'contract_company', label: '合同公司', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'contract_type', label: '合同类型', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'contract_start_date', label: '合同开始时间', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'contract_end_date', label: '合同结束时间', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'contract_actual_end_date', label: '合同实际结束时间', classification: 'SENSITIVE', selfEditable: false },
-    { key: 'contract_signed_times', label: '合同签订次数', classification: 'SENSITIVE', selfEditable: false },
+    // 合同信息（保密）
+    { key: 'contract_no', label: '合同编号', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'contract_company', label: '合同公司', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'contract_type', label: '合同类型', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'contract_start_date', label: '合同开始时间', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'contract_end_date', label: '合同结束时间', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'contract_actual_end_date', label: '合同实际结束时间', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'contract_signed_times', label: '合同签订次数', classification: 'CONFIDENTIAL', selfEditable: false },
 
-    // 资料附件（极敏感）
-    { key: 'document_id_card', label: '身份证附件', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_bank_card', label: '银行卡附件', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_household_book_index', label: '户口本首页', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_household_book_self', label: '户口本本人页', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_education_certificate', label: '学历证书', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_degree_certificate', label: '学位证书', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_resignation_proof', label: '离职证明', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_medical_report', label: '体检报告', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_resume', label: '原始简历', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_onboarding_form', label: '入职登记表', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_student_card', label: '学生证', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
-    { key: 'document_personality_test', label: '性格测试', classification: 'HIGHLY_SENSITIVE', selfEditable: false },
+  // 资料附件（保密）
+    { key: 'document_id_card', label: '身份证附件', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_bank_card', label: '银行卡附件', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_household_book_index', label: '户口本首页', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_household_book_self', label: '户口本本人页', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_education_certificate', label: '学历证书', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_degree_certificate', label: '学位证书', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_resignation_proof', label: '离职证明', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_medical_report', label: '体检报告', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_resume', label: '原始简历', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_onboarding_form', label: '入职登记表', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_student_card', label: '学生证', classification: 'CONFIDENTIAL', selfEditable: false },
+    { key: 'document_personality_test', label: '性格测试', classification: 'CONFIDENTIAL', selfEditable: false },
   ];
 
+  // 两档规则：仅以下字段公开，其余一律保密
+  const twoTierPublicKeys = new Set<string>([
+    'name', 'contact_phone', 'contact_work_email', 'landline',
+    'employment_status', 'business_unit', 'department', 'position',
+    'english_name', 'gender'
+  ]);
   for (const fd of fieldDefs) {
+    // 统一覆盖为两档
+    fd.classification = twoTierPublicKeys.has(fd.key) ? 'PUBLIC' as any : 'CONFIDENTIAL' as any;
     await prisma.fieldDefinition.upsert({
       where: { key: fd.key },
       update: {

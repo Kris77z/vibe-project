@@ -183,6 +183,15 @@ model FieldDefinition {
   @@map("field_definitions")
 }
 
+model ModuleVisibility {
+  id                   String             @id @default(cuid())
+  moduleKey            String             @unique
+  classification       FieldClassification
+  updatedAt            DateTime           @updatedAt
+
+  @@map("module_visibility")
+}
+
 model FieldSet {
   id          String         @id @default(cuid())
   name        String         @unique
@@ -704,9 +713,7 @@ model IssueTagRelation {
 
 enum FieldClassification {
   PUBLIC
-  INTERNAL
-  SENSITIVE
-  HIGHLY_SENSITIVE
+  CONFIDENTIAL
 }
 
 enum TeamMemberRole {

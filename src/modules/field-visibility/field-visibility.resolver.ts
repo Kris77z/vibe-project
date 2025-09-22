@@ -16,10 +16,25 @@ export class FieldDefinitionItem {
   label!: string;
 
   @Field(() => String)
-  classification!: 'PUBLIC' | 'INTERNAL' | 'SENSITIVE' | 'HIGHLY_SENSITIVE';
+  classification!: 'PUBLIC' | 'CONFIDENTIAL';
 
   @Field(() => Boolean, { nullable: true })
   selfEditable?: boolean;
+
+  // 两档后移除 allowManagerVisible
+}
+
+// === 模块可见性：类型 ===
+@ObjectType()
+export class ModuleVisibilityItem {
+  @Field(() => String)
+  moduleKey!: string;
+
+  @Field(() => String)
+  classification!: 'PUBLIC' | 'CONFIDENTIAL';
+
+  @Field(() => Date)
+  updatedAt!: Date;
 }
 
 @Resolver()
@@ -58,7 +73,7 @@ export class FieldVisibilityResolver {
   async upsertFieldDefinition(
     @Args('key') key: string,
     @Args('label') label: string,
-    @Args('classification') classification: 'PUBLIC' | 'INTERNAL' | 'SENSITIVE' | 'HIGHLY_SENSITIVE',
+    @Args('classification') classification: 'PUBLIC' | 'CONFIDENTIAL',
     @Args('selfEditable', { type: () => Boolean, nullable: true }) selfEditable = false,
   ): Promise<string> {
     const fd = await (this.service as any).prisma.fieldDefinition.upsert({
@@ -67,6 +82,48 @@ export class FieldVisibilityResolver {
       create: { key, label, classification: classification as any, selfEditable },
     });
     return fd.id;
+  }
+
+  @Query(() => [ModuleVisibilityItem], { name: 'moduleVisibilities' })
+  async moduleVisibilities(): Promise<Array<{ moduleKey: string; classification: string; updatedAt: Date }>> {
+    const list = await (this.service as any).prisma.moduleVisibility.findMany({
+      orderBy: { moduleKey: 'asc' },
+    });
+    return list as any;
+  }
+
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('org_visibility:configure')
+  @Mutation(() => String)
+  async upsertModuleVisibility(
+    @Args('moduleKey') moduleKey: string,
+    @Args('classification') classification: 'PUBLIC' | 'CONFIDENTIAL',
+  ): Promise<string> {
+    const mv = await (this.service as any).prisma.moduleVisibility.upsert({
+      where: { moduleKey },
+      update: { classification: classification as any },
+      create: { moduleKey, classification: classification as any },
+    });
+    return mv.moduleKey as string;
+  }
+
+  // === 分组批量设置：按 FieldSet 名称统一更新字段分级与主管可见 ===
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermissions('org_visibility:configure')
+  @Mutation(() => Boolean)
+  async applyGroupVisibility(
+    @Args('setName') setName: string,
+    @Args('classification') classification: 'PUBLIC' | 'CONFIDENTIAL',
+  ): Promise<boolean> {
+    const fs = await (this.service as any).prisma.fieldSet.findUnique({ where: { name: setName }, include: { items: { include: { field: true } } } });
+    if (!fs) throw new Error('FieldSet not found');
+    const keys = (fs.items || []).map((it: any) => it.field?.key).filter(Boolean);
+    if (keys.length === 0) return true;
+    await (this.service as any).prisma.fieldDefinition.updateMany({
+      where: { key: { in: keys } },
+      data: { classification: classification as any },
+    });
+    return true;
   }
 
   @UseGuards(JwtAuthGuard, PermissionsGuard)
