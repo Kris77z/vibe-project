@@ -657,15 +657,22 @@ export class UsersResolver {
   @RequirePermissions('user:read')
   async user(@Args('id') id: string, @CurrentUser() current?: any) {
     const data = await this.usersService.findOne(id);
-    // 基于可见性：字段级过滤/脱敏
-    const visible = await this.fieldVisibility.getVisibleFieldKeys(current?.sub ?? current?.id, 'user', id);
-    // 1) 联系方式：未授权则置空
-    if (!visible.includes('contact_phone')) {
-      data.phone = null;
-    }
-    // 2) EAV 字段：仅返回可见字段集合
-    if (Array.isArray((data as any).fieldValues)) {
-      (data as any).fieldValues = (data as any).fieldValues.filter((fv: any) => visible.includes(fv.fieldKey));
+    // HR/超级管理员：放宽可见性，返回完整字段
+    const viewerId = current?.sub ?? current?.id;
+    const viewer = await this.usersService.findOne(viewerId).catch(() => null as any);
+    const roleNames: string[] = (viewer?.roles || []).map((r: any) => r.name);
+    const isHRorSuper = roleNames.includes('hr_manager') || roleNames.includes('super_admin');
+    if (!isHRorSuper) {
+      // 基于可见性：字段级过滤/脱敏（公开/普通用户）
+      const visible = await this.fieldVisibility.getVisibleFieldKeys(viewerId, 'user', id);
+      // 1) 联系方式：未授权则置空
+      if (!visible.includes('contact_phone')) {
+        data.phone = null;
+      }
+      // 2) EAV 字段：仅返回可见字段集合
+      if (Array.isArray((data as any).fieldValues)) {
+        (data as any).fieldValues = (data as any).fieldValues.filter((fv: any) => visible.includes(fv.fieldKey));
+      }
     }
     return data;
   }
