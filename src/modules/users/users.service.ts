@@ -1019,7 +1019,8 @@ export class UsersService {
       for (const k of candidates) { const i = header.indexOf(k.toLowerCase()); if (i !== -1) return i; }
       return -1;
     };
-    const iId = findIndex(['员工编码','员工id','id','用户id','个人id']);
+    // 仅当表头显式提供数据库ID相关列时才按ID更新；不再将“员工编码”视为数据库ID
+    const iId = findIndex(['员工id','id','用户id','个人id']);
     const iName = findIndex(['姓名','name']);
     const iEmail = findIndex(['邮箱','email','个人邮箱','工作邮箱','email地址']);
     const iDepartment = findIndex(['部门','department','所属部门']);
@@ -1030,7 +1031,8 @@ export class UsersService {
     }
 
     // 预取 FieldDefinition：用于 EAV 扩展字段（按 label≈中文表头 近似匹配）
-    const BASE_HEADERS = new Set<string>(['序号','姓名','邮箱','email','Email','部门','手机','手机号','联系电话','电话','员工编码','员工id','id','用户id','个人id']);
+    // 基础列：用作系统主属性或定位；注意：不再将“员工编码”视为基础列，从而作为EAV字段导入
+    const BASE_HEADERS = new Set<string>(['序号','姓名','邮箱','email','Email','部门','手机','手机号','联系电话','电话','员工id','id','用户id','个人id']);
     const eavHeaderLabels = originalHeaders.filter(h => h && !BASE_HEADERS.has(h));
     let defMap = new Map<string, any>();
     let unknownHeaders: string[] = [];
@@ -1126,7 +1128,7 @@ export class UsersService {
 
       if (!idVal && (!name || (!email && !phone))) { skipped++; errors.push(`第${r+1}行：关键列缺失，name=${name} email=${email} phone=${phone}`); continue; }
 
-      // 若提供员工编码（=用户ID），则走更新逻辑
+      // 若提供真实数据库ID列，则走按ID更新逻辑（不再把“员工编码”当作ID）
       if (idVal) {
         const existingById = await this.prisma.user.findUnique({ where: { id: idVal } });
         if (existingById) {
@@ -1258,22 +1260,39 @@ export class UsersService {
   async getUserImportHeaders(): Promise<string[]> {
     try {
       const root = path.resolve(__dirname, '../../..');
-      const filePath = path.join(root, 'docs', '花名册样例.md');
-      const content = await fs.promises.readFile(filePath, 'utf-8');
-      const lines = content.split(/\r?\n/);
-      const headerLine = lines.find(l => l.trim().startsWith('|'));
-      if (!headerLine) return ['姓名', '邮箱', '部门', '手机', '员工编码'];
-      const headers = headerLine
-        .replace(/^\|/, '')
-        .replace(/\|$/, '')
-        .split('|')
-        .map(s => s.trim())
-        .filter(Boolean)
-        // 去除“序号”列（模板中第一列，不参与导入）
-        .filter(h => h !== '序号');
+      // 优先从 CSV 模板读取（人员导入模板 (4).csv），以模板为准
+      const csvPath = path.join(root, 'docs', '人员导入模板 (4).csv');
+      let headers: string[] | null = null;
+      try {
+        const csv = await fs.promises.readFile(csvPath, 'utf-8');
+        const firstLine = csv.split(/\r?\n/)[0] || '';
+        const parsed = firstLine.split(',').map(s => s.trim()).filter(Boolean);
+        if (parsed.length > 0) headers = parsed;
+      } catch { /* fallback to md */ }
+
+      if (!headers) {
+        const mdPath = path.join(root, 'docs', '花名册样例.md');
+        const content = await fs.promises.readFile(mdPath, 'utf-8');
+        const lines = content.split(/\r?\n/);
+        const headerLine = lines.find(l => l.trim().startsWith('|'));
+        if (!headerLine) return ['姓名', '邮箱', '部门', '手机'];
+        headers = headerLine
+          .replace(/^\|/, '')
+          .replace(/\|$/, '')
+          .split('|')
+          .map(s => s.trim())
+          .filter(Boolean)
+          .filter(h => h !== '序号');
+      }
+
+      // 追加离职四字段（若不存在）
+      const extra = ['离职时间','离职类型','离职原因分类','离职具体原因'];
+      for (const e of extra) {
+        if (!headers.includes(e)) headers.push(e);
+      }
       return headers;
     } catch {
-      return ['姓名', '邮箱', '部门', '手机', '员工编码'];
+      return ['姓名', '邮箱', '部门', '手机', '离职时间','离职类型','离职原因分类','离职具体原因'];
     }
   }
 }
