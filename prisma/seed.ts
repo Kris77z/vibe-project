@@ -40,12 +40,9 @@ async function main() {
     { name: 'timelog:update', resource: 'timelog', action: 'update', description: '更新工时' },
     { name: 'timelog:delete', resource: 'timelog', action: 'delete', description: '删除工时' },
 
-    // 字段与数据可见性（新增）
-    { name: 'contact:read', resource: 'contact', action: 'read', description: '查看联系方式（内部）' },
-    { name: 'user_sensitive:read', resource: 'user_sensitive', action: 'read', description: '查看敏感字段' },
-    { name: 'user_highly_sensitive:read', resource: 'user_highly_sensitive', action: 'read', description: '查看极敏感字段' },
-    { name: 'export:sensitive', resource: 'export', action: 'sensitive', description: '导出敏感字段' },
-    { name: 'export:highly_sensitive', resource: 'export', action: 'highly_sensitive', description: '导出极敏感字段' },
+    // 字段与数据可见性（两档方案）
+    { name: 'user_confidential:read', resource: 'user_confidential', action: 'read', description: '查看保密字段' },
+    { name: 'export:confidential', resource: 'export', action: 'confidential', description: '导出保密字段' },
 
     // 组织可见性配置
     { name: 'org_visibility:configure', resource: 'org_visibility', action: 'configure', description: '配置组织可见性与字段集' },
@@ -199,12 +196,11 @@ async function main() {
     });
   }
 
-  // HR 管理员 - 敏感与极敏感查看（默认不授予导出极敏感）
+  // HR 管理员 - 查看和导出保密字段（两档方案）
   const hrPermissionNames = [
-    'user_sensitive:read',
-    'user_highly_sensitive:read',
-    'contact:read',
-    'export:sensitive',
+    'user:read',
+    'user_confidential:read',
+    'export:confidential',
   ];
   const hrPermissions = allPermissions.filter(p => hrPermissionNames.includes(p.name));
   for (const permission of hrPermissions) {
